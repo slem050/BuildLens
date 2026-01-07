@@ -48,7 +48,13 @@ export class PostgresDatabase implements DatabaseAdapter {
 
       for (const statement of statements) {
         if (statement.trim()) {
-          await this.query(statement);
+          try {
+            await this.query(statement);
+          } catch (error: any) {
+            if (error.code !== '42P07' && error.code !== '23505') {
+              throw error;
+            }
+          }
         }
       }
     } else {
@@ -57,12 +63,38 @@ export class PostgresDatabase implements DatabaseAdapter {
   }
 
   private async initializeSchemaFromQueries(): Promise<void> {
-    await this.query(SqlQueries.CREATE_TESTS_TABLE);
-    await this.query(SqlQueries.CREATE_FUNCTIONS_TABLE);
-    await this.query(SqlQueries.CREATE_LINKS_TABLE);
+    try {
+      await this.query(SqlQueries.CREATE_TESTS_TABLE);
+    } catch (error: any) {
+      if (error.code !== '42P07' && error.code !== '23505') {
+        throw error;
+      }
+    }
+
+    try {
+      await this.query(SqlQueries.CREATE_FUNCTIONS_TABLE);
+    } catch (error: any) {
+      if (error.code !== '42P07' && error.code !== '23505') {
+        throw error;
+      }
+    }
+
+    try {
+      await this.query(SqlQueries.CREATE_LINKS_TABLE);
+    } catch (error: any) {
+      if (error.code !== '42P07' && error.code !== '23505') {
+        throw error;
+      }
+    }
     
     for (const indexQuery of SqlQueries.CREATE_INDEXES) {
-      await this.query(indexQuery);
+      try {
+        await this.query(indexQuery);
+      } catch (error: any) {
+        if (error.code !== '42P07' && error.code !== '23505') {
+          throw error;
+        }
+      }
     }
   }
 
