@@ -69,7 +69,7 @@ jobs:
           TEST_DB_PASSWORD: postgres
 
       - name: Test coverage
-        run: TEST_DB_PORT=5433 jest --coverage
+        run: npm run test:coverage:ci
         env:
           TEST_DB_HOST: localhost
           TEST_DB_PORT: 5433

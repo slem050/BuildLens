@@ -13,6 +13,7 @@
     "test": "bash scripts/test-db-check.sh && TEST_DB_PORT=5433 jest",
     "test:watch": "bash scripts/test-db-check.sh && TEST_DB_PORT=5433 jest --watch",
     "test:coverage": "bash scripts/test-db-check.sh && TEST_DB_PORT=5433 jest --coverage",
+    "test:coverage:ci": "TEST_DB_PORT=5433 jest --coverage",
     "test:unit": "bash scripts/test-db-check.sh && TEST_DB_PORT=5433 jest src/__tests__/unit",
     "test:component": "bash scripts/test-db-check.sh && TEST_DB_PORT=5433 jest src/__tests__/component",
     "test:ci": "TEST_DB_PORT=5433 jest",
