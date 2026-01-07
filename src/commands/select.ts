@@ -4,7 +4,6 @@ import { FunctionParser } from '../parser/function-parser';
 import { DiffAnalyzer } from '../git/diff-analyzer';
 import { JestRunner } from '../utils/jest-runner';
 import { Logger } from '../utils/logger';
-import * as path from 'path';
 
 export interface SelectOptions {
   baseBranch?: string;
@@ -21,7 +20,7 @@ export class SelectCommand {
 
   constructor(db: Database) {
     this.db = db;
-    this.repo = new Repository(db);
+    this.repo = new Repository(db.getAdapter());
     this.functionParser = new FunctionParser();
     this.diffAnalyzer = new DiffAnalyzer();
     this.jestRunner = new JestRunner();
@@ -30,11 +29,13 @@ export class SelectCommand {
   async execute(options: SelectOptions = {}): Promise<void> {
     Logger.section('BuildLens Select Mode');
     
-    const baseBranch = options.baseBranch || process.env.BASE_BRANCH || 'main';
+    const baseBranch = options.baseBranch || 
+                       process.env.GITHUB_BASE_REF || 
+                       process.env.BASE_BRANCH || 
+                       'main';
     Logger.info(`Comparing against base branch: ${baseBranch}`);
 
     try {
-      // Step 1: Get changed files
       Logger.info('Analyzing git diff...');
       const changedFiles = await this.diffAnalyzer.getChangedFiles(baseBranch);
       
@@ -48,7 +49,6 @@ export class SelectCommand {
 
       Logger.info(`Found ${changedFiles.length} changed files`);
 
-      // Step 2: Parse functions from changed files
       Logger.info('Detecting changed functions...');
       const changedFunctions: Array<{
         filePath: string;
@@ -60,14 +60,11 @@ export class SelectCommand {
       for (const changedFile of changedFiles) {
         Logger.debug(`Analyzing ${changedFile.filePath}`);
         
-        // Parse functions from the file
         this.functionParser.addSourceFiles([changedFile.filePath]);
         const allFunctions = this.functionParser.parseFunctions(changedFile.filePath);
 
-        // Track all overlapping functions for this file
         const fileOverlappingFunctions = new Set<string>();
 
-        // Find functions that overlap with changed line ranges
         for (const change of changedFile.changes) {
           const overlappingFunctions = allFunctions.filter((func) => {
             return (
@@ -80,7 +77,6 @@ export class SelectCommand {
             const key = `${func.filePath}::${func.name}::${func.startLine}::${func.endLine}`;
             fileOverlappingFunctions.add(key);
             
-            // Avoid duplicates
             if (!changedFunctions.find(f => 
               f.filePath === func.filePath &&
               f.functionName === func.name &&
@@ -97,7 +93,6 @@ export class SelectCommand {
           }
         }
 
-        // If no specific functions found but file changed, get all functions in the file
         if (fileOverlappingFunctions.size === 0 && allFunctions.length > 0) {
           Logger.debug(`No specific functions matched, including all functions in ${changedFile.filePath}`);
           for (const func of allFunctions) {
@@ -120,12 +115,10 @@ export class SelectCommand {
 
       Logger.info(`Found ${changedFunctions.length} changed functions`);
 
-      // Log changed functions
       for (const func of changedFunctions) {
         Logger.debug(`  - ${func.filePath}::${func.functionName} (${func.startLine}-${func.endLine})`);
       }
 
-      // Step 3: Query database for tests that cover these functions
       Logger.info('Querying database for impacted tests...');
       
       const functionIds: number[] = [];
@@ -144,7 +137,6 @@ export class SelectCommand {
         }
       }
 
-      // Also check by file path (broader match)
       const filePaths = [...new Set(changedFunctions.map(f => f.filePath))];
       const functionsByFile = await this.repo.getFunctionsByFilePaths(filePaths);
       for (const funcRecord of functionsByFile) {
@@ -155,12 +147,10 @@ export class SelectCommand {
 
       Logger.info(`Found ${functionIds.length} functions in database`);
 
-      // Get tests for these functions
       const impactedTests = await this.repo.getTestsForFunctions(functionIds);
 
       Logger.info(`Found ${impactedTests.length} impacted tests`);
 
-      // Step 4: Log selection details
       Logger.section('Test Selection Summary');
       Logger.info(`Changed files: ${changedFiles.length}`);
       Logger.info(`Changed functions: ${changedFunctions.length}`);
@@ -180,7 +170,6 @@ export class SelectCommand {
         return;
       }
 
-      // Log selected tests
       Logger.section('Selected Tests');
       const testFiles = new Set<string>();
       for (const test of impactedTests) {
@@ -188,7 +177,6 @@ export class SelectCommand {
         testFiles.add(test.file_path);
       }
 
-      // Step 5: Run selected tests
       if (options.dryRun) {
         Logger.section('Dry Run Complete');
         Logger.info(`Would run ${impactedTests.length} tests from ${testFiles.size} test files`);
@@ -203,7 +191,6 @@ export class SelectCommand {
           Logger.success('All selected tests passed!');
         } else {
           Logger.warn('Some tests failed. Review the output above.');
-          // Don't throw - let the user see the results
         }
       }
 
@@ -229,4 +216,3 @@ export class SelectCommand {
     }
   }
 }
-

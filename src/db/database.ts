@@ -1,65 +1,40 @@
-import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
-import * as fs from 'fs';
-import * as path from 'path';
+import { DatabaseAdapter, DatabaseConfig } from './interface';
+import { PostgresDatabase } from './postgres-database';
 
-export interface DatabaseConfig {
-  host?: string;
-  port?: number;
-  database?: string;
-  user?: string;
-  password?: string;
-  connectionString?: string;
+export { DatabaseAdapter, DatabaseConfig, QueryResult } from './interface';
+
+export class DatabaseFactory {
+  static create(config: DatabaseConfig): DatabaseAdapter {
+    if (config.connectionString?.startsWith('postgresql://') || 
+        config.connectionString?.startsWith('postgres://') ||
+        !config.connectionString) {
+      return new PostgresDatabase(config);
+    }
+    
+    throw new Error(`Unsupported database connection string: ${config.connectionString}`);
+  }
 }
 
 export class Database {
-  private pool: Pool;
+  private adapter: DatabaseAdapter;
 
   constructor(config: DatabaseConfig) {
-    if (config.connectionString) {
-      this.pool = new Pool({ connectionString: config.connectionString });
-    } else {
-      this.pool = new Pool({
-        host: config.host || process.env.DB_HOST || 'localhost',
-        port: config.port || parseInt(process.env.DB_PORT || '5432'),
-        database: config.database || process.env.DB_NAME || 'buildlens',
-        user: config.user || process.env.DB_USER || 'postgres',
-        password: config.password || process.env.DB_PASSWORD || 'postgres',
-      });
-    }
-
-    this.pool.on('error', (err: Error) => {
-      console.error('Unexpected database error:', err);
-    });
+    this.adapter = DatabaseFactory.create(config);
   }
 
-  async connect(): Promise<PoolClient> {
-    return this.pool.connect();
+  getAdapter(): DatabaseAdapter {
+    return this.adapter;
   }
 
-  async query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
-    return this.pool.query<T>(text, params);
+  async query<T = any>(text: string, params?: any[]): Promise<{ rows: T[]; rowCount: number }> {
+    return this.adapter.query<T>(text, params);
   }
 
   async initializeSchema(): Promise<void> {
-    // Use require.resolve to find the schema file
-    const schemaPath = path.join(__dirname, 'schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf-8');
-    
-    // Split by semicolons and execute each statement
-    const statements = schema
-      .split(';')
-      .map((s: string) => s.trim())
-      .filter((s: string) => s.length > 0);
-
-    for (const statement of statements) {
-      if (statement.trim()) {
-        await this.query(statement);
-      }
-    }
+    return this.adapter.initializeSchema();
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    return this.adapter.close();
   }
 }
-

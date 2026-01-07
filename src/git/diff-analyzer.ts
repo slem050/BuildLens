@@ -29,27 +29,22 @@ export class DiffAnalyzer {
     this.git = simpleGit(repoPath);
   }
 
-  /**
-   * Get changed files between current HEAD and base branch
-   */
   async getChangedFiles(baseBranch: string = 'main'): Promise<ChangedFile[]> {
     try {
-      // Get current branch
-      const currentBranch = await this.git.revparse(['--abbrev-ref', 'HEAD']);
-      
-      // Get diff summary
-      const diffSummary = await this.git.diffSummary([baseBranch, currentBranch.trim()]);
+      await this.ensureBaseBranchFetched(baseBranch);
+
+      const currentRef = await this.getCurrentRef();
+      const baseRef = await this.resolveBaseRef(baseBranch);
+
+      const diffSummary = await this.git.diffSummary([baseRef, currentRef]);
       
       const changedFiles: ChangedFile[] = [];
 
       for (const file of diffSummary.files) {
         if (file.binary) continue;
-        
-        // Only track TypeScript/JavaScript files
         if (!this.isSourceFile(file.file)) continue;
 
-        // Get detailed diff
-        const diff = await this.git.diff([baseBranch, currentBranch.trim(), '--', file.file]);
+        const diff = await this.git.diff([baseRef, currentRef, '--', file.file]);
         const changes = this.parseDiffLines(diff, file.file);
 
         changedFiles.push({
@@ -67,9 +62,6 @@ export class DiffAnalyzer {
     }
   }
 
-  /**
-   * Get changed files between two commits
-   */
   async getChangedFilesBetweenCommits(fromCommit: string, toCommit: string): Promise<ChangedFile[]> {
     try {
       const diffSummary = await this.git.diffSummary([fromCommit, toCommit]);
@@ -98,9 +90,6 @@ export class DiffAnalyzer {
     }
   }
 
-  /**
-   * Get current commit hash
-   */
   async getCurrentCommitHash(): Promise<string> {
     try {
       return await this.git.revparse(['HEAD']);
@@ -109,9 +98,59 @@ export class DiffAnalyzer {
     }
   }
 
-  /**
-   * Parse diff output to extract line ranges
-   */
+  private async getCurrentRef(): Promise<string> {
+    if (process.env.GITHUB_SHA) {
+      return process.env.GITHUB_SHA;
+    }
+
+    try {
+      const branch = await this.git.revparse(['--abbrev-ref', 'HEAD']);
+      if (branch && branch !== 'HEAD') {
+        return branch.trim();
+      }
+    } catch (error) {
+    }
+
+    try {
+      return await this.git.revparse(['HEAD']);
+    } catch (error) {
+      throw new Error('Could not determine current git reference');
+    }
+  }
+
+  private async resolveBaseRef(baseBranch: string): Promise<string> {
+    if (process.env.GITHUB_BASE_REF) {
+      return process.env.GITHUB_BASE_REF;
+    }
+
+    try {
+      const branches = await this.git.branchLocal();
+      if (branches.all.includes(baseBranch) || branches.all.includes(`origin/${baseBranch}`)) {
+        return baseBranch;
+      }
+    } catch (error) {
+    }
+
+    try {
+      const remoteBranches = await this.git.branch(['-r']);
+      if (remoteBranches.all.includes(`origin/${baseBranch}`)) {
+        return `origin/${baseBranch}`;
+      }
+    } catch (error) {
+    }
+
+    return baseBranch;
+  }
+
+  private async ensureBaseBranchFetched(baseBranch: string): Promise<void> {
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      try {
+        await this.git.fetch(['origin', baseBranch]);
+      } catch (error) {
+      }
+    }
+  }
+
   private parseDiffLines(diff: string, filePath: string): ChangedFile['changes'] {
     const changes: ChangedFile['changes'] = [];
     const lines = diff.split('\n');
@@ -123,7 +162,6 @@ export class DiffAnalyzer {
     let currentType: 'added' | 'deleted' | 'modified' = 'modified';
 
     for (const line of lines) {
-      // Match hunk header: @@ -start,count +start,count @@
       const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
       if (hunkMatch) {
         if (inHunk && currentStart > 0) {
@@ -135,13 +173,12 @@ export class DiffAnalyzer {
         }
         
         inHunk = true;
-        hunkStartLine = parseInt(hunkMatch[3], 10); // New file line number
+        hunkStartLine = parseInt(hunkMatch[3], 10);
         currentStart = hunkStartLine;
         currentEnd = hunkStartLine;
         currentType = 'modified';
       } else if (inHunk) {
         if (line.startsWith('+') && !line.startsWith('+++')) {
-          // Added line
           if (currentType === 'deleted') {
             currentType = 'modified';
           } else if (currentType !== 'added') {
@@ -151,7 +188,6 @@ export class DiffAnalyzer {
           currentEnd = hunkStartLine;
           hunkStartLine++;
         } else if (line.startsWith('-') && !line.startsWith('---')) {
-          // Deleted line
           if (currentType === 'added') {
             currentType = 'modified';
           } else if (currentType !== 'deleted') {
@@ -160,7 +196,6 @@ export class DiffAnalyzer {
           }
           currentEnd = hunkStartLine;
         } else if (line.startsWith(' ')) {
-          // Context line - end current change range
           if (currentStart > 0 && currentEnd >= currentStart) {
             changes.push({
               startLine: currentStart,
@@ -175,7 +210,6 @@ export class DiffAnalyzer {
       }
     }
 
-    // Add final change if in hunk
     if (inHunk && currentStart > 0 && currentEnd >= currentStart) {
       changes.push({
         startLine: currentStart,
@@ -187,19 +221,12 @@ export class DiffAnalyzer {
     return changes;
   }
 
-  /**
-   * Check if file is a source file we care about
-   */
   private isSourceFile(filePath: string): boolean {
     const ext = path.extname(filePath);
     return ['.ts', '.tsx', '.js', '.jsx'].includes(ext);
   }
 
-  /**
-   * Normalize file paths
-   */
   private normalizePath(filePath: string): string {
     return path.normalize(filePath).replace(/^\.\//, '');
   }
 }
-
