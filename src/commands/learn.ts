@@ -1,6 +1,6 @@
 import { Database } from '../db/database';
 import { Repository } from '../db/repository';
-import { CoverageParser } from '../coverage/parser';
+import { CoverageParser, FileCoverage } from '../coverage/parser';
 import { FunctionParser } from '../parser/function-parser';
 import { JestRunner } from '../utils/jest-runner';
 import { Logger } from '../utils/logger';
@@ -117,18 +117,19 @@ export class LearnCommand {
             continue;
           }
 
-          if (fileCoverage.f && Object.keys(fileCoverage.f).length > 0) {
+          const coverage = fileCoverage as FileCoverage;
+          if (coverage.f && Object.keys(coverage.f).length > 0) {
             const coveredFunctionIds = new Set<string>();
             
-            for (const [fnId, fnCoverage] of Object.entries(fileCoverage.fnMap)) {
-              const coverageCount = fileCoverage.f[fnId];
+            for (const [fnId, fnCoverage] of Object.entries(coverage.fnMap)) {
+              const coverageCount = coverage.f[fnId];
               if (coverageCount && coverageCount > 0) {
                 coveredFunctionIds.add(fnId);
               }
             }
 
             for (const fnId of coveredFunctionIds) {
-              const fnCoverage = fileCoverage.fnMap[fnId];
+              const fnCoverage = coverage.fnMap[fnId];
               const functionName = fnCoverage.name || '<anonymous>';
               const startLine = fnCoverage.decl.start.line;
               const endLine = fnCoverage.decl.end.line;
