@@ -1,0 +1,43 @@
+{
+  "name": "buildlens",
+  "version": "1.0.0",
+  "description": "Function-Level Test Impact Analysis for Jest",
+  "main": "dist/index.js",
+  "bin": {
+    "buildlens": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts",
+    "prepublishOnly": "npm run build",
+    "test": "jest",
+    "test:learn": "buildlens learn",
+    "test:diff": "buildlens select"
+  },
+  "keywords": [
+    "jest",
+    "test-impact-analysis",
+    "tia",
+    "testing",
+    "coverage"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "pg": "^8.11.3",
+    "ts-morph": "^21.0.1",
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2",
+    "simple-git": "^3.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "@types/pg": "^8.10.9",
+    "@types/jest": "^29.5.11",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1"
+  }
+}
+
