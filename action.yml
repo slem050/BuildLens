@@ -1,0 +1,38 @@
+name: 'BuildLens'
+description: 'Function-Level Test Impact Analysis for Jest - Run only tests that are impacted by your code changes'
+author: 'BuildLens Team'
+branding:
+  icon: 'search'
+  color: 'blue'
+inputs:
+  mode:
+    description: 'Operation mode: "learn" to build test mappings, "select" to run impacted tests'
+    required: true
+    default: 'select'
+  database-url:
+    description: 'PostgreSQL connection string (optional, defaults to service container)'
+    required: false
+  base-ref:
+    description: 'Base branch/ref for comparison (defaults to GITHUB_BASE_REF or "main")'
+    required: false
+  coverage-path:
+    description: 'Path to Jest coverage JSON file (for learn mode)'
+    required: false
+  jest-args:
+    description: 'Additional arguments to pass to Jest'
+    required: false
+  github-token:
+    description: 'GitHub token for API access (defaults to GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
+outputs:
+  tests-selected:
+    description: 'Number of tests selected to run'
+  tests-run:
+    description: 'Number of tests that were executed'
+  coverage-file:
+    description: 'Path to coverage file (in learn mode)'
+runs:
+  using: 'node20'
+  main: 'dist/action.js'
+
