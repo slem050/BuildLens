@@ -10,10 +10,15 @@ for function-level Test Impact Analysis on Jest, backed by PostgreSQL). It **onl
 never opens PRs or changes product code.
 
 ## Standing constraints
-- **Hard cap: ≤ 15 OPEN tickets total.** Do not create more if already at the cap.
+- **Hard cap: ≤ 15 OPEN tickets total** (explicit user instruction 2026-06-14: *"make sure we got 15
+  tickets maximum, don't create more if we already have open"*). Count OPEN issues first; if at the cap,
+  **create nothing** this run.
 - **≤ 2 new *work* issues per run** (quality over volume). Skip a run if the backlog is healthy.
 - Keep **one** pinned tracking/digest issue updated each run (currently **#6**) — don't open new ones.
+  (Bot can't comment/edit it, so the live digest lives in this file; see run log.)
 - Bias order: (1) correctness bugs that break the core promise, (2) roadmap gaps, (3) hygiene.
+- **This file is the persistent progress/flow record** — update it and push to `main` every run, and
+  read it first next run.
 
 ## ⚙️ Tooling / integration constraints (IMPORTANT — learned the hard way)
 The `gh`/GitHub integration token in this environment can **only CREATE issues**. It **cannot**:
@@ -73,30 +78,35 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (5 work + 1 tracking; cap 15)
+## Current OPEN backlog (6 work + 1 tracking = 7; cap 15)
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
 | 7 | Patch critical/high dep vulns (`simple-git` RCE, `@actions/github`/undici) + npm audit CI gate | P1 / bug (security) | open, needs `@cursor` trigger |
 | 8 | Harden CI/release: commit & verify `dist/` Action bundle, Node×PG matrix, coverage gate, runtime pin | P1 / chore | open, needs `@cursor` trigger |
 | 5 | Add E2E test proving `select` runs a SUBSET (not a full fallback) | P1 / test | open, needs `@cursor` trigger |
-| 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (keep updated) |
+| 9 | Real ESLint+Prettier+EditorConfig lint gate; Logger for output; no swallowed `catch` | P1 / chore (+good-first) | **NEW (run 4)**, needs `@cursor` trigger |
+| 10 | DB schema hygiene: `TEXT` cols, SSL for managed PG, versioned migrations | P1 / chore (db) | **NEW (run 4)**, needs `@cursor` trigger |
+| 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities
+## Top 5 priorities (all filed as of run 4)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` runs a real subset (core promise). *(filed)*
 2. **#7** — P1/security: `simple-git` critical RCE + `@actions/github`/undici + CI audit gate. *(filed)*
 3. **#8** — P1/chore: CI/release hardening — commit/verify `dist/`, Node×PG matrix, coverage gate,
    `engines`+`.nvmrc`, dedupe `ci.yml`/`test.yml`. *(filed)*
 4. **#5** — P1/test: E2E proof that `select` runs a SUBSET (not a full fallback). *(filed)*
-5. **P1/chore** *(NOT yet filed — next run)* — real lint gate + ESLint/Prettier/EditorConfig; fix empty
-   `catch` blocks in `src/git/diff-analyzer.ts:111-112,131-132,139-140,149-151` (swallowed git errors).
+5. **#9** — P1/chore: real lint gate (ESLint/Prettier/EditorConfig) + Logger for output + de-swallow
+   `catch` blocks in `diff-analyzer.ts`. *(filed run 4)* — closely followed by **#10** (DB hygiene).
 
 ### Unfiled backlog queue (next candidates, in priority order)
-- **P1/chore** — real lint gate + ESLint/Prettier/EditorConfig + fix swallowed `catch` blocks
-  (`diff-analyzer.ts:111-112,131-132,139-140,149-151`). *(top of next run)*
-- **P2/feature** — SQLite local-mode `DatabaseAdapter` (README roadmap) + DB hygiene
-  (`VARCHAR(1000/500)`→`TEXT` for paths/names `queries.ts:5-6,16-17`, SSL for managed PG, versioned migrations).
-- **P2/chore** — dependency currency (`commander`→15, `ts-morph`→28) — low urgency, don't churn.
+- **P2/feature** — SQLite local-mode `DatabaseAdapter` (README roadmap line 259) via the
+  `DatabaseAdapter`/`DatabaseFactory` pattern (`src/db/interface.ts`, `src/db/database.ts`). **Now
+  unblocked by #10's migration runner.** Larger surface; file when budget allows.
+- **P2/chore** — dependency currency (`commander ^11`→15, `ts-morph ^21`→28; `package.json:44,47`) —
+  low urgency, don't churn (`chalk` stays v4 = CJS).
+- **P3/docs** — add `REPO_OVERVIEW.md` + `AGENTS.md`; fix stale README "Project Structure". (Process
+  files the handoff references but that don't exist. Low risk; consider a `documentation` ticket — but
+  this is borderline busywork, so only file if a run is otherwise empty.)
 
 ## Dedup keywords to search each run
 `path`, `fallback`, `select`, `subset`, `e2e`, `lint`, `eslint`, `prettier`, `engines`, `nvmrc`,
@@ -116,6 +126,14 @@ each issue:
 - **#8:** `@cursor please implement this issue.` Commit+verify `dist/` (`git diff --exit-code -- dist`),
   Node[18,20,22]×PG[14,15,16] matrix in one workflow, `coverageThreshold` gate, `engines`+`.nvmrc`;
   validate with `npm run build`/`test:coverage:ci` + a `uses: ./` Action check; open a PR that passes the matrix.
+- **#9:** `@cursor please implement this issue.` Add ESLint/Prettier/`.editorconfig` + real `lint`/`format:check`
+  scripts, replace `ci.yml:59-60` `|| echo` with a real gate, de-swallow `diff-analyzer.ts` catches, route
+  `console.*`→`Logger`; validate `npm run lint && npm run format:check && npm run build && npm run test:ci`
+  (Node 20 / PG 15) + a unit test for a previously-swallowed catch path; open a PR that passes CI.
+- **#10:** `@cursor please implement this issue.` `VARCHAR`→`TEXT` in `queries.ts`, add SSL to
+  `PostgresDatabase`, add a `schema_migrations` versioned migration runner via `DatabaseAdapter`; validate
+  with `docker compose -f docker-compose.test.yml up -d` + `npm run build && npm run test:ci` (Node 20 / PG 15)
+  + a long-value integration test, a migration-idempotency test, and an SSL unit test; open a PR that passes CI.
 
 ## Run log
 ### 2026-06-13
@@ -150,3 +168,36 @@ each issue:
 - **Repo discrepancies (unchanged):** `REPO_OVERVIEW.md` + `AGENTS.md` still missing; README "Project
   Structure" still stale. Recommend adding the two files (would also unblock the handoff instructions).
 - **Open tickets: 5** (#4, #5, #6 tracking, #7, #8) — cap 15.
+
+### 2026-06-14 (run 4 — 20:00 UTC cron)
+- **Synced context:** re-read `README.md`, full `src/` tree, `package.json`, `.github/workflows/*`,
+  all open/closed issues, PRs, last 15 commits, this log, and the automation memory. **No PRs exist**;
+  the last commits are doc-only (`f93eb0e`, `ccf3f48` = prior ticket-manager logs). **Core-bug code is
+  unchanged** since run 3 → #4/#5/#7/#8 all remain valid as written.
+- **User instruction this run:** *"≤15 tickets max; keep progress/flow in a docs md file; push to main
+  every run; read at start."* This file already satisfies that; reinforced the 15-cap in Standing
+  constraints. Was at **5 open** (well under cap) → eligible to file up to 2.
+- **Filed 2 new issues (≤2/run), both already anticipated by existing tickets (not dupes):**
+  - **#9** — P1/chore: real ESLint+Prettier+EditorConfig lint gate; replace no-op `lint`
+    (`package.json:20`) and soft CI step (`ci.yml:59-60`); de-swallow empty `catch` blocks
+    (`diff-analyzer.ts:111-112,131-132,139-140,149-150`); route raw `console.*` through `Logger`
+    (`diff-analyzer.ts:60,88`; `postgres-database.ts:24`; `function-parser.ts:34`). **#8 explicitly
+    defers lint config here** (its AC: "…or explicitly handed to the lint-gate issue").
+  - **#10** — P1/chore(db): `VARCHAR(1000/500)`→`TEXT` (`queries.ts:5-6,16-17`; over-length values
+    error `22001`, breaking `learn`), add SSL to `PostgresDatabase` (`postgres-database.ts:11-21`),
+    add a versioned migration runner (replaces ad-hoc `CREATE TABLE IF NOT EXISTS`,
+    `postgres-database.ts:40-99`). **#4 explicitly defers VARCHAR→TEXT here** ("track VARCHAR→TEXT
+    separately"); also unblocks the roadmap SQLite adapter.
+- **Skipped (deliberately):** SQLite local-mode feature and dependency currency — to honor ≤2/run +
+  quality-over-volume. Queued above.
+- **Integration STILL create-only — re-verified live this run on #9:** `gh issue comment 9` →
+  `addComment` **403**; `gh issue edit 9 --add-label enhancement` → `addLabelsToLabelable` **403**.
+  So the user's step-6 "post an `@cursor` handoff comment" is **not possible with this token** —
+  instead the full `@cursor` handoff is **embedded in the body of #9 and #10 at creation**, and intended
+  labels are listed at the top of each body. **#9 and #10 are UNLABELED.** **Maintainer action needed:**
+  comment `@cursor please implement this issue.` on #4, #5, #7, #8, #9, #10 to dispatch the engineering
+  agent (suggested order honoring deps: #4 → #5, then #7 → #8, then #9 / #10), and apply the intended
+  labels. Tracking issue **#6 cannot be edited/commented by the bot**, so the live digest is in this file.
+- **Repo discrepancies (unchanged):** `REPO_OVERVIEW.md` + `AGENTS.md` still **missing** (handoffs
+  reference them); README "Project Structure" still stale. Added a low-priority P3/docs queue item.
+- **Open tickets: 7** (#4, #5, #6 tracking, #7, #8, #9, #10) — cap 15.
