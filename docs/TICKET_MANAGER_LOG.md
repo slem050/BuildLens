@@ -78,18 +78,20 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (6 work + 1 tracking = 7; cap 15)
+## Current OPEN backlog (8 work + 1 tracking = 9; cap 15 → 6 slots free)
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
 | 7 | Patch critical/high dep vulns (`simple-git` RCE, `@actions/github`/undici) + npm audit CI gate | P1 / bug (security) | open, needs `@cursor` trigger |
 | 8 | Harden CI/release: commit & verify `dist/` Action bundle, Node×PG matrix, coverage gate, runtime pin | P1 / chore | open, needs `@cursor` trigger |
 | 5 | Add E2E test proving `select` runs a SUBSET (not a full fallback) | P1 / test | open, needs `@cursor` trigger |
-| 9 | Real ESLint+Prettier+EditorConfig lint gate; Logger for output; no swallowed `catch` | P1 / chore (+good-first) | **NEW (run 4)**, needs `@cursor` trigger |
-| 10 | DB schema hygiene: `TEXT` cols, SSL for managed PG, versioned migrations | P1 / chore (db) | **NEW (run 4)**, needs `@cursor` trigger |
+| 9 | Real ESLint+Prettier+EditorConfig lint gate; Logger for output; no swallowed `catch` | P1 / chore (+good-first) | open, needs `@cursor` trigger |
+| 10 | DB schema hygiene: `TEXT` cols, SSL for managed PG, versioned migrations | P1 / chore (db) | open, needs `@cursor` trigger |
+| 11 | Add a SQLite `DatabaseAdapter` for no-Postgres local mode (roadmap) | P2 / feature | **NEW (run 5)**, needs `@cursor` trigger |
+| 12 | Add `REPO_OVERVIEW.md` + `AGENTS.md`; fix stale README "Project Structure" | P2 / docs (+good-first) | **NEW (run 5)**, needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (all filed as of run 4)
+## Top 5 priorities (unchanged at run 5 — all filed; new #11/#12 are P2, below these)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` runs a real subset (core promise). *(filed)*
 2. **#7** — P1/security: `simple-git` critical RCE + `@actions/github`/undici + CI audit gate. *(filed)*
 3. **#8** — P1/chore: CI/release hardening — commit/verify `dist/`, Node×PG matrix, coverage gate,
@@ -99,14 +101,12 @@ blocks a feature; don't churn for fashion.
    `catch` blocks in `diff-analyzer.ts`. *(filed run 4)* — closely followed by **#10** (DB hygiene).
 
 ### Unfiled backlog queue (next candidates, in priority order)
-- **P2/feature** — SQLite local-mode `DatabaseAdapter` (README roadmap line 259) via the
-  `DatabaseAdapter`/`DatabaseFactory` pattern (`src/db/interface.ts`, `src/db/database.ts`). **Now
-  unblocked by #10's migration runner.** Larger surface; file when budget allows.
 - **P2/chore** — dependency currency (`commander ^11`→15, `ts-morph ^21`→28; `package.json:44,47`) —
-  low urgency, don't churn (`chalk` stays v4 = CJS).
-- **P3/docs** — add `REPO_OVERVIEW.md` + `AGENTS.md`; fix stale README "Project Structure". (Process
-  files the handoff references but that don't exist. Low risk; consider a `documentation` ticket — but
-  this is borderline busywork, so only file if a run is otherwise empty.)
+  low urgency, don't churn (`chalk` stays v4 = CJS). **Top of the queue now.**
+- **P2/feature (future, post-#4)** — per-test-case coverage granularity (README roadmap line 252;
+  current mapping is file-level, `learn.ts:112-159`). Larger surface; only after #4 lands.
+- ~~SQLite local-mode adapter~~ → **filed as #11 (run 5)**.
+- ~~`REPO_OVERVIEW.md` + `AGENTS.md` + stale README~~ → **filed as #12 (run 5)**.
 
 ## Dedup keywords to search each run
 `path`, `fallback`, `select`, `subset`, `e2e`, `lint`, `eslint`, `prettier`, `engines`, `nvmrc`,
@@ -134,6 +134,17 @@ each issue:
   `PostgresDatabase`, add a `schema_migrations` versioned migration runner via `DatabaseAdapter`; validate
   with `docker compose -f docker-compose.test.yml up -d` + `npm run build && npm run test:ci` (Node 20 / PG 15)
   + a long-value integration test, a migration-idempotency test, and an SSL unit test; open a PR that passes CI.
+- **#11:** `@cursor please implement this issue.` Add `src/db/sqlite-database.ts`
+  (`SqliteDatabase implements DatabaseAdapter`, `better-sqlite3`), route SQLite connection strings in
+  `DatabaseFactory` (`src/db/database.ts:7-15`), keep SQL parameterized/centralized in `SqlQueries`
+  (`src/db/queries.ts`) with dialect-aware array predicates; validate Node 20 with `npm run build` +
+  `npm run test:ci` against **both** an in-memory SQLite DB and `postgres:15` (port 5433) + SQLite unit
+  tests + a Repository parity integration test + a Node 20 × SQLite CI matrix cell; open a PR that passes CI.
+- **#12:** `@cursor please implement this issue.` Create `REPO_OVERVIEW.md` + `AGENTS.md` grounded in
+  `README.md` + the real `src/` tree (cite exemplars `src/db/{interface,database,queries}.ts`,
+  `src/utils/logger.ts`, `src/commands/{learn,select}.ts`), and fix the stale README/PROJECT_SUMMARY
+  "Project Structure" (`README.md:223-248`); validate Node 20 `npm run build` stays green + every cited
+  path resolves; open a PR that passes CI.
 
 ## Run log
 ### 2026-06-13
@@ -201,3 +212,38 @@ each issue:
 - **Repo discrepancies (unchanged):** `REPO_OVERVIEW.md` + `AGENTS.md` still **missing** (handoffs
   reference them); README "Project Structure" still stale. Added a low-priority P3/docs queue item.
 - **Open tickets: 7** (#4, #5, #6 tracking, #7, #8, #9, #10) — cap 15.
+
+### 2026-06-15 (run 5 — 20:00 UTC cron)
+- **Synced context:** re-read `README.md`, full `src/` tree, `package.json`, `jest.config.js`,
+  `.github/workflows/*`, all open/closed issues, PRs, last 15 commits, and this log. **No PRs exist.**
+  The last 3 commits are doc-only ticket-manager logs (`d3a93bb`, `f93eb0e`, `ccf3f48`); **last product
+  code commit is still `2e0d7bc`** → no `src/`/`package.json` change since run 4, so **#4/#5/#7/#8/#9/#10
+  all remain valid as written**. Re-confirmed the core bug by re-reading `learn.ts:131-159` (stores
+  Istanbul `normalizePath` keys + `fnCoverage.decl` lines) vs `select.ts:60-146` + `queries.ts:67-78`
+  (queries git-relative paths + ts-morph spans; exact-match lookups) → fallback at `select.ts:159-171`.
+- **User instruction this run (reinforced):** *"15 tickets max; don't create more if already open; keep
+  progress/flow in a docs md file; push to `main` every run; read at start."* Honored: was at **7 open**
+  (< 15) → eligible to file up to 2; this file is the progress record, updated and **pushed to `main`**.
+- **Filed 2 new issues (≤2/run), both verified non-duplicate** (grepped all open bodies for
+  `sqlite`/`repo_overview`/`agents`/`project structure`):
+  - **#11** — P2/feature: SQLite local-mode `DatabaseAdapter` (README roadmap line 259). `DatabaseFactory`
+    only ever returns `PostgresDatabase` and throws otherwise (`database.ts:7-15`); all SQL is
+    Postgres-specific (`$n` params, `SERIAL`, `ON CONFLICT`, `= ANY($1::int[])` — `queries.ts:4,46-51,77,90`).
+    #10 only *references* SQLite as a beneficiary; no adapter issue existed. Unblocked by #10's migration runner.
+  - **#12** — P2/docs(+good-first): create `REPO_OVERVIEW.md` + `AGENTS.md` (the handoffs in #7/#8/#9/#10
+    literally say *"if they're absent, use README"* — they're absent) and fix the stale README/PROJECT_SUMMARY
+    "Project Structure" (`README.md:223-248` omits `db/{interface,postgres-database,queries}.ts`, `action.ts`,
+    `index.ts`, `__tests__/`). **Elevated from P3→P2** because every run's first instruction + every handoff
+    depends on these files. NOT created by the bot directly (rule: only manage issues, don't change product code).
+- **Skipped (deliberately):** dependency currency (`commander`/`ts-morph` majors) and per-test-case coverage
+  — honoring ≤2/run + quality-over-volume. Queued above.
+- **Integration STILL create-only — re-verified live this run on #11:** `gh issue comment 11` →
+  `addComment` **403 "Resource not accessible by integration"**; `--label enhancement` was **silently dropped**
+  (#11 and #12 are **UNLABELED**). So the user's step-6 *"post an `@cursor` handoff comment"* is **not
+  possible with this token** — the full `@cursor` handoff is instead **embedded in the body of #11 and #12 at
+  creation**, and intended labels are listed at the top of each body. **Maintainer action needed:** comment
+  `@cursor please implement this issue.` on #4, #5, #7, #8, #9, #10, #11, #12 to dispatch the engineering agent
+  (suggested order honoring deps: #4 → #5, then #7 → #8, then #9/#10, then #11 [after #10] / #12), and apply
+  the intended labels. Tracking issue **#6 still can't be edited/commented by the bot**, so the live digest is
+  in this file.
+- **Open tickets: 9** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12) — cap 15, **6 slots free**.
