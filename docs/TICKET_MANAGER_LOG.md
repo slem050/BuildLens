@@ -61,7 +61,10 @@ fallback at `select.ts:159-171`. Existing component tests mask it by mocking + h
 (`__tests__/component/select.test.ts:20-21,38-45,52-53`, `learn.test.ts:28-42,77-81`).
 
 ## Verified dependency-security finding (grounds #7; re-run `npm audit --package-lock-only`)
-`npm audit` = **9 vulns (2 critical, 3 high, 3 moderate, 1 low)**. Headline:
+`npm audit` = **29 vulns (2 critical, 3 high, 22 moderate, 2 low)** as of run 6 (2026-06-16); was
+**9 (2 crit, 3 high, 3 mod, 1 low)** at run 3. The **critical/high headline is unchanged** (the
+moderate count rose as more advisories were published against the same pinned deps) — **#7 still
+fully covers it** (the fix bumps the same direct deps + adds the CI audit gate). Headline:
 - **`simple-git@^3.20.0` (DIRECT, `package.json:46`)** — **critical RCE** (`blockUnsafeOperationsPlugin`
   bypass) + command-execution / RCE (high). Used throughout `src/git/diff-analyzer.ts`
   (`simpleGit()` :29; `diffSummary` :39/:67; `diff` :47/:75; `revparse` :95/:107/:115; `fetch` :148).
@@ -78,7 +81,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (8 work + 1 tracking = 9; cap 15 → 6 slots free)
+## Current OPEN backlog (9 work + 1 tracking = 10; cap 15 → 5 slots free)
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -87,11 +90,12 @@ blocks a feature; don't churn for fashion.
 | 5 | Add E2E test proving `select` runs a SUBSET (not a full fallback) | P1 / test | open, needs `@cursor` trigger |
 | 9 | Real ESLint+Prettier+EditorConfig lint gate; Logger for output; no swallowed `catch` | P1 / chore (+good-first) | open, needs `@cursor` trigger |
 | 10 | DB schema hygiene: `TEXT` cols, SSL for managed PG, versioned migrations | P1 / chore (db) | open, needs `@cursor` trigger |
-| 11 | Add a SQLite `DatabaseAdapter` for no-Postgres local mode (roadmap) | P2 / feature | **NEW (run 5)**, needs `@cursor` trigger |
-| 12 | Add `REPO_OVERVIEW.md` + `AGENTS.md`; fix stale README "Project Structure" | P2 / docs (+good-first) | **NEW (run 5)**, needs `@cursor` trigger |
+| 11 | Add a SQLite `DatabaseAdapter` for no-Postgres local mode (roadmap) | P2 / feature | open, needs `@cursor` trigger |
+| 12 | Add `REPO_OVERVIEW.md` + `AGENTS.md`; fix stale README "Project Structure" | P2 / docs (+good-first) | open, needs `@cursor` trigger |
+| 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | **NEW (run 6)**, needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (unchanged at run 5 — all filed; new #11/#12 are P2, below these)
+## Top 5 priorities (unchanged at run 6 — all filed; #11/#12/#13 are P2, below these)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` runs a real subset (core promise). *(filed)*
 2. **#7** — P1/security: `simple-git` critical RCE + `@actions/github`/undici + CI audit gate. *(filed)*
 3. **#8** — P1/chore: CI/release hardening — commit/verify `dist/`, Node×PG matrix, coverage gate,
@@ -110,7 +114,8 @@ blocks a feature; don't churn for fashion.
 
 ## Dedup keywords to search each run
 `path`, `fallback`, `select`, `subset`, `e2e`, `lint`, `eslint`, `prettier`, `engines`, `nvmrc`,
-`matrix`, `sqlite`, `migration`, `varchar`, `ssl`, `dist artifact`, `REPO_OVERVIEW`, `AGENTS`.
+`matrix`, `sqlite`, `migration`, `varchar`, `ssl`, `dist artifact`, `REPO_OVERVIEW`, `AGENTS`,
+`action.ts`, `tests-selected`, `tests-run`, `setOutput`, `base-ref`, `action output`.
 
 ## Ready-to-use `@cursor` handoffs (paste as a comment to kick off the agent)
 Because the bot can't comment, the maintainer can trigger the engineering agent by commenting on
@@ -145,6 +150,13 @@ each issue:
   `src/utils/logger.ts`, `src/commands/{learn,select}.ts`), and fix the stale README/PROJECT_SUMMARY
   "Project Structure" (`README.md:223-248`); validate Node 20 `npm run build` stays green + every cited
   path resolves; open a PR that passes CI.
+- **#13:** `@cursor please implement this issue.` Make `SelectCommand.execute()` return a typed
+  `{ selectedTests, ranTests, fellBackToAll }` (computed from `select.ts:150-205`), wire `action.ts`
+  outputs to it (drop the hardcoded `'0'` at `src/action.ts:51-52`), add a `fell-back-to-all` output in
+  `action.yml`, and fix the dead `GITHUB_BASE_REF`/`GITHUB_SHA` guards (`src/action.ts:24-29`); validate
+  Node 20 × `postgres:15` (port 5433) with `npm run build && npm run test:ci` + a unit test (subset &
+  fallback counts via `withTestDb`) + an Action-output test spying on `@actions/core`; rebuild `dist/`
+  (coordinate with #8); open a PR that passes CI.
 
 ## Run log
 ### 2026-06-13
@@ -247,3 +259,49 @@ each issue:
   the intended labels. Tracking issue **#6 still can't be edited/commented by the bot**, so the live digest is
   in this file.
 - **Open tickets: 9** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12) — cap 15, **6 slots free**.
+
+### 2026-06-16 (run 6 — 20:00 UTC cron)
+- **Synced context:** re-read this log first, then `README.md`, the full `src/` tree (incl. `action.ts`,
+  `db/*`, `commands/*`, `coverage/parser.ts`, `parser/function-parser.ts`, `git/diff-analyzer.ts`,
+  `utils/*`, `repository.ts`), `package.json`, `jest.config.js`, all `.github/workflows/*`, `action.yml`,
+  all open/closed issues, PRs, and the last 15 commits. **No PRs exist.** The last 3 commits are doc-only
+  ticket-manager logs (`8e962ed` run 5, `d3a93bb` run 4, `f93eb0e` run 3); **last product-code commit is
+  still `2e0d7bc`** → no `src/`/`package.json` change since run 3, so **#4/#5/#7/#8/#9/#10/#11/#12 all
+  remain valid as written**. Re-confirmed the core bug independently (path absolute-vs-relative, name
+  bare-vs-`Class.method`, lines decl-vs-full-span; exact-match lookups `queries.ts:67-70` **and** the
+  file-path fallback `queries.ts:76-78` both miss because the stored path is the absolute Istanbul key
+  while the query path is git-relative → fallback at `select.ts:159-171`).
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still absent** (re-checked this run; the always-load step can't read
+  them) → source of truth remains `README.md` + the `src/` tree. This is exactly what **#12** fixes; no new
+  ticket (don't duplicate).
+- **Refreshed advisory audit:** `npm audit --package-lock-only` now reports **29 vulns (2 critical, 3 high,
+  22 moderate, 2 low)**, up from 9 at run 3. Critical/high headline unchanged (`simple-git` RCE +
+  `@actions/github`→undici); the moderate jump is more advisories against the same pins. **#7 already covers
+  the fix + CI gate** — no new ticket. (Couldn't add a clarifying comment to #7: integration is comment-blocked.)
+- **Filed 1 new issue (≤2/run; quality over volume) — a newly-discovered, grounded correctness bug NOT in
+  the prior queue and verified non-duplicate** (grepped #4/#5/#7/#8 bodies for `action.ts`/`tests-selected`/
+  `setOutput`/`GITHUB_SHA`):
+  - **#13** — P2/bug: the published Action mis-reports outputs and has dead input-propagation. `action.yml:28-32`
+    declares `tests-selected`/`tests-run`, but `src/action.ts:51-52` hardcodes both to `'0'` (consumers gating
+    on them always see 0); and `src/action.ts:24-29`'s `GITHUB_BASE_REF`/`GITHUB_SHA` guards only assign when
+    the var is *already* set (no-op on non-PR events). Root cause: `SelectCommand.execute()` returns `void`
+    (`select.ts:29`) so there's no real count to emit. Distinct from **#7** (only touches `action.ts:28` for the
+    `@actions/github` dep) and **#8** (missing/committed `dist/` so the Action loads at all). Soft-depends on
+    **#4** (counts are only *meaningful* once selection works) and coordinates with **#8** (rebuild `dist/`).
+- **Skipped (deliberately):** dependency currency (`commander ^11`→15, `ts-morph ^21`→28 — low urgency, don't
+  churn; `chalk` stays v4 = CJS) and per-test-case coverage granularity (depends on #4) — honoring ≤2/run +
+  quality-over-volume. Both remain queued below. Did **not** file the lower-value `jest-runner.ts` unquoted-`execSync`
+  observation (`utils/jest-runner.ts:49-54`) — theoretical, internal-only inputs; logged here for future watch.
+- **Integration STILL create-only — re-verified live this run, three ways:** `gh label create P0` → **403**;
+  `gh issue edit 4 --add-label bug` → **403 `addLabelsToLabelable`**; `gh issue comment 13` (the required
+  step-6 `@cursor` handoff) → **403 `addComment`**. So labels can't be applied (repo also has **no** P0/P1/P2 or
+  chore/test/feature labels — only the GitHub defaults) and the handoff comment can't be posted. **Workaround:**
+  #13's intended labels are listed at the top of its body and the full `@cursor` handoff is **embedded in its
+  body**. **Maintainer action needed:** to actually dispatch the engineering agents, comment
+  `@cursor please implement this issue.` on #4, #5, #7, #8, #9, #10, #11, #12, #13 (suggested order honoring deps:
+  **#4 → #5**, then **#7 → #8**, then **#9/#10**, then **#11** [after #10] / **#12**, then **#13** [after #4/#8]),
+  and apply the intended labels listed atop each body. Tracking issue **#6 still can't be edited/commented by the
+  bot**, so the live digest stays in this file. *(Note: after 6 runs, no `@cursor` handoff has ever been dispatchable
+  by the bot and no PRs exist — the single biggest blocker to forward motion is a maintainer (or a token with
+  comment scope) triggering the agent on #4 first.)*
+- **Open tickets: 10** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13) — cap 15, **5 slots free**.
