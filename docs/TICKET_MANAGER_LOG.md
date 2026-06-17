@@ -60,6 +60,22 @@ Lookups demand exact equality (`queries.ts:67-70` and `:76-78`), so all return e
 fallback at `select.ts:159-171`. Existing component tests mask it by mocking + hand-aligning
 (`__tests__/component/select.test.ts:20-21,38-45,52-53`, `learn.test.ts:28-42,77-81`).
 
+## Second verified core bug — `learn` cross-product over-linking (grounds #14, found run 7)
+Independent of the #4 lookup mismatch, `learn` links **every** test to **every** covered function,
+so even after #4 is fixed `select` returns the *whole* suite (no subset). In `learn.ts:112-159` the
+outer loop is per **test file** (`:112`) but the inner loop iterates **all** source files in Jest's
+*merged* `coverage-final.json` (`:115`) with no scoping back to that test file (the computed
+`testBaseName` at `:113` is **dead code**); then `:145-153` does `createLink(test, func)` for every
+test case × every covered function. So with tests `a1`(→`foo`) and `b1`(→`bar`), `learn` writes
+`a1→foo, a1→bar, b1→foo, b1→bar` (full bipartite). `Repository.getTestsForFunctions`
+(`repository.ts:106-113`, `queries.ts:87-91`) then returns ALL tests for any changed function.
+Root cause is acknowledged in `coverage/parser.ts:53-55` ("Jest coverage doesn't directly map tests
+to functions"). Masked by `learn.test.ts:28-42` (1 file × 1 fn × 1 test = 1 link; `:80-81` only
+asserts links > 0). Fix = collect coverage **per test file** in `learn` and link only that file's
+tests. This **reframes** the old queued "per-test-case coverage" item from a P2 *feature* to a
+present **correctness** bug (per-test-*file* attribution is the floor; per-*case* stays the roadmap
+enhancement, README line 252).
+
 ## Verified dependency-security finding (grounds #7; re-run `npm audit --package-lock-only`)
 `npm audit` = **29 vulns (2 critical, 3 high, 22 moderate, 2 low)** as of run 6 (2026-06-16); was
 **9 (2 crit, 3 high, 3 mod, 1 low)** at run 3. The **critical/high headline is unchanged** (the
@@ -81,10 +97,11 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (9 work + 1 tracking = 10; cap 15 → 5 slots free)
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free)
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
+| 14 | Fix `learn` cross-product over-linking (each test → only functions it executed) | P1 / bug (correctness) | **NEW (run 7)**, needs `@cursor` trigger |
 | 7 | Patch critical/high dep vulns (`simple-git` RCE, `@actions/github`/undici) + npm audit CI gate | P1 / bug (security) | open, needs `@cursor` trigger |
 | 8 | Harden CI/release: commit & verify `dist/` Action bundle, Node×PG matrix, coverage gate, runtime pin | P1 / chore | open, needs `@cursor` trigger |
 | 5 | Add E2E test proving `select` runs a SUBSET (not a full fallback) | P1 / test | open, needs `@cursor` trigger |
@@ -92,30 +109,42 @@ blocks a feature; don't churn for fashion.
 | 10 | DB schema hygiene: `TEXT` cols, SSL for managed PG, versioned migrations | P1 / chore (db) | open, needs `@cursor` trigger |
 | 11 | Add a SQLite `DatabaseAdapter` for no-Postgres local mode (roadmap) | P2 / feature | open, needs `@cursor` trigger |
 | 12 | Add `REPO_OVERVIEW.md` + `AGENTS.md`; fix stale README "Project Structure" | P2 / docs (+good-first) | open, needs `@cursor` trigger |
-| 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | **NEW (run 6)**, needs `@cursor` trigger |
+| 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (unchanged at run 6 — all filed; #11/#12/#13 are P2, below these)
-1. **#4** — P0/bug: fix path/identity mismatch so `select` runs a real subset (core promise). *(filed)*
-2. **#7** — P1/security: `simple-git` critical RCE + `@actions/github`/undici + CI audit gate. *(filed)*
-3. **#8** — P1/chore: CI/release hardening — commit/verify `dist/`, Node×PG matrix, coverage gate,
-   `engines`+`.nvmrc`, dedupe `ci.yml`/`test.yml`. *(filed)*
-4. **#5** — P1/test: E2E proof that `select` runs a SUBSET (not a full fallback). *(filed)*
-5. **#9** — P1/chore: real lint gate (ESLint/Prettier/EditorConfig) + Logger for output + de-swallow
-   `catch` blocks in `diff-analyzer.ts`. *(filed run 4)* — closely followed by **#10** (DB hygiene).
+## Top 5 priorities (updated run 7 — correctness-of-core-promise now occupies the top 3)
+1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
+   falls back). *(filed)*
+2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
+   otherwise, even with #4 fixed, `select` returns the whole suite. Pairs with #4; both gate the core
+   promise. *(filed run 7)*
+3. **#5** — P1/test: E2E proof that `select` runs a SUBSET (verifies #4 **and** #14 together). *(filed)*
+4. **#7** — P1/security: `simple-git` critical RCE + `@actions/github`/undici + CI audit gate. *(filed)*
+5. **#8** — P1/chore: CI/release hardening — commit/verify `dist/`, Node×PG matrix, coverage gate,
+   `engines`+`.nvmrc`, dedupe `ci.yml`/`test.yml`. *(filed)* — closely followed by **#9** (lint gate),
+   **#10** (DB hygiene), then P2s **#11/#12/#13**.
 
 ### Unfiled backlog queue (next candidates, in priority order)
 - **P2/chore** — dependency currency (`commander ^11`→15, `ts-morph ^21`→28; `package.json:44,47`) —
   low urgency, don't churn (`chalk` stays v4 = CJS). **Top of the queue now.**
-- **P2/feature (future, post-#4)** — per-test-case coverage granularity (README roadmap line 252;
-  current mapping is file-level, `learn.ts:112-159`). Larger surface; only after #4 lands.
+- **P3/chore (watch, not filed)** — `learn.ts:62-73` test-name JSON parse is fragile: it regex-greps
+  `/\{[\s\S]*\}/` out of mixed `--json`+`--coverage=text` output (`jest-runner.ts:36-38`); if it fails,
+  `testNames` is empty → `testFileMap` empty → **0 links** created silently. Also `parseTestNamesFromJson`
+  uses Jest's absolute `result.name` as the test `file_path` (same absolute-vs-relative class as #4).
+  Likely folds into #14's `learn` rework — revisit when #14 is picked up; don't file separately yet.
+- **P3/chore (watch, not filed)** — `jest-runner.ts:49-54` builds an unquoted `npx jest ${args.join(' ')}`
+  for `execSync`; inputs are internal test-file paths today, so low risk — logged for future watch.
+- ~~per-test-case coverage as a "feature"~~ → **reframed & filed as #14 (run 7)**: per-test-*file*
+  attribution is a **correctness** fix; only finer per-*case* granularity (README line 252) remains a
+  future P2 feature, and only after #4/#14 land.
 - ~~SQLite local-mode adapter~~ → **filed as #11 (run 5)**.
 - ~~`REPO_OVERVIEW.md` + `AGENTS.md` + stale README~~ → **filed as #12 (run 5)**.
 
 ## Dedup keywords to search each run
 `path`, `fallback`, `select`, `subset`, `e2e`, `lint`, `eslint`, `prettier`, `engines`, `nvmrc`,
 `matrix`, `sqlite`, `migration`, `varchar`, `ssl`, `dist artifact`, `REPO_OVERVIEW`, `AGENTS`,
-`action.ts`, `tests-selected`, `tests-run`, `setOutput`, `base-ref`, `action output`.
+`action.ts`, `tests-selected`, `tests-run`, `setOutput`, `base-ref`, `action output`,
+`cross-product`, `over-link`, `createLink`, `per-test`, `attribution`, `bipartite`.
 
 ## Ready-to-use `@cursor` handoffs (paste as a comment to kick off the agent)
 Because the bot can't comment, the maintainer can trigger the engineering agent by commenting on
@@ -150,6 +179,13 @@ each issue:
   `src/utils/logger.ts`, `src/commands/{learn,select}.ts`), and fix the stale README/PROJECT_SUMMARY
   "Project Structure" (`README.md:223-248`); validate Node 20 `npm run build` stays green + every cited
   path resolves; open a PR that passes CI.
+- **#14:** `@cursor please implement this issue.` Fix `learn` so each test links **only** to functions
+  it executed — collect coverage **per test file** (`jest-runner.ts:22-62`) and drop the cross-product +
+  dead `testBaseName` (`learn.ts:112-159`); keep SQL parameterized via `Repository`/`SqlQueries` and
+  output via `Logger`. Validate Node 20 × `postgres:15` (port 5433) with
+  `docker compose -f docker-compose.test.yml up -d` + `npm run build && npm run test:ci`, add a two-
+  test-file integration test asserting **no** cross links (via `withTestDb`), update `learn.test.ts`
+  proportionally; coordinate with #4 (identity) & #5 (E2E subset); open a PR that passes CI.
 - **#13:** `@cursor please implement this issue.` Make `SelectCommand.execute()` return a typed
   `{ selectedTests, ranTests, fellBackToAll }` (computed from `select.ts:150-205`), wire `action.ts`
   outputs to it (drop the hardcoded `'0'` at `src/action.ts:51-52`), add a `fell-back-to-all` output in
@@ -305,3 +341,49 @@ each issue:
   by the bot and no PRs exist — the single biggest blocker to forward motion is a maintainer (or a token with
   comment scope) triggering the agent on #4 first.)*
 - **Open tickets: 10** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13) — cap 15, **5 slots free**.
+
+### 2026-06-17 (run 7 — 20:00 UTC cron)
+- **Synced context (read this log first):** re-read `README.md`, the full `src/` tree (incl. `action.ts`,
+  `commands/{learn,select}.ts`, `db/{database,postgres-database,queries,repository,interface}.ts`,
+  `coverage/parser.ts`, `parser/function-parser.ts`, `git/diff-analyzer.ts`, `utils/{logger,jest-runner}.ts`),
+  `package.json`, `jest.config.js`, `.github/workflows/*`, `action.yml`, the test harness
+  (`__tests__/utils/test-db.ts`, `__tests__/component/learn.test.ts`), all open/closed issues, PRs, and the
+  last 15 commits. **No PRs exist** (`gh pr list` empty, all states). The last 4 commits are doc-only
+  ticket-manager logs (`bce1f4c` run 6 … `ccf3f48` run 2); **last product-code commit is still `2e0d7bc`** →
+  no `src/`/`package.json` change since run 3, so **#4/#5/#7/#8/#9/#10/#11/#12/#13 all remain valid as
+  written**. Current branch `cursor/buildlens-issue-backlog-872e` == `origin/main` (0 ahead/0 behind).
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still absent** (re-checked: `Read` → File not found) → the always-load
+  step can't read them; source of truth stays `README.md` + `src/`. Exactly what **#12** fixes; no new ticket.
+- **Refresh audit:** `npm audit --package-lock-only` returned no count this run (registry offline in VM) —
+  keeping the **last-known 29 vulns (2 crit, 3 high, 22 mod, 2 low)** from run 6 for the digest; **#7 still
+  covers the fix + CI gate**, no new ticket.
+- **Filed 1 new issue (≤2/run; quality over volume) — a newly-traced, grounded correctness bug, verified
+  non-duplicate** (grepped all open+closed issue bodies for `cross-product|every test|all functions|per-test|
+  attribution|createLink|bipartite` → **no matches**):
+  - **#14** — P1/bug(correctness): `learn` builds a **full test×function cross-product**. Outer loop is per
+    test file (`learn.ts:112`) but the inner loop iterates **all** source files in Jest's *merged*
+    `coverage-final.json` (`:115`) with the per-file `testBaseName` (`:113`) **unused/dead**; `:145-153` then
+    links every test case × every covered function. So even after **#4** (identity) is fixed, `select` returns
+    the **whole** suite (`getTestsForFunctions`, `repository.ts:106-113`) — no subset. Root cause acknowledged
+    at `coverage/parser.ts:53-55`; masked by `learn.test.ts:28-42` (1×1×1 fixture, asserts only links>0). This
+    is **distinct from #4** (lookup-miss → fallback) and **verified by #5** (E2E subset). It **reframes** the
+    old queued "per-test-case coverage" *feature* into a present **correctness** bug (per-test-*file*
+    attribution is the floor; per-*case* stays the roadmap enhancement).
+- **Skipped (deliberately):** dependency currency (`commander`/`ts-morph` majors — low urgency, don't churn;
+  `chalk` stays v4=CJS), per-*case* coverage granularity (future, post-#4/#14), and two P3 watch items now
+  logged in the unfiled queue (`learn.ts:62-73` fragile test-name JSON parse → can silently create 0 links;
+  `jest-runner.ts:49-54` unquoted `execSync`) — honoring ≤2/run + quality-over-volume. Did **not** file a 2nd
+  issue: the remaining candidates are low-leverage/duplicative, and the backlog is healthy at 11 open.
+- **Integration STILL create-only — re-verified live this run on #14:** `gh issue create --label bug` →
+  label **silently dropped** (`gh issue view 14` shows `labels: []`); `gh issue comment 14` (the required
+  step-6 `@cursor` handoff) → **403 `addComment` "Resource not accessible by integration"**. So labels can't
+  be applied and the handoff comment can't be posted. **Workaround (as every prior run):** #14's intended
+  labels are at the top of its body and the full `@cursor` handoff is **embedded in its body**. **Maintainer
+  action needed:** to dispatch the engineering agents, comment `@cursor please implement this issue.` on
+  #4, #14, #5, #7, #8, #9, #10, #11, #12, #13 (suggested order honoring deps: **#4 → #14 → #5**, then
+  **#7 → #8**, then **#9/#10**, then **#11** [after #10] / **#12**, then **#13** [after #4/#8]), and apply the
+  intended labels listed atop each body. Tracking issue **#6 still can't be edited/commented by the bot**, so
+  the live digest stays in this file. *(After 7 runs: no `@cursor` handoff has ever been dispatchable by the
+  bot and no PRs exist — the biggest blocker to forward motion remains a maintainer (or a comment-scoped
+  token) triggering the agent on **#4** first.)*
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
