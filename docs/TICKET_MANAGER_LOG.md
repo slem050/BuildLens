@@ -27,6 +27,13 @@ The `gh`/GitHub integration token in this environment can **only CREATE issues**
 - edit issue bodies (`updateIssue` → same error),
 - close/reopen issues, or open PRs.
 
+**Run 9 update (2026-06-19):** the comment block is **not** just a `gh`/GraphQL quirk — the **REST**
+path is blocked too. `gh api -X POST repos/slem050/BuildLens/issues/4/comments -f body=…` returns
+**HTTP 403 "Resource not accessible by integration"** (same as GraphQL `addComment` and
+`addLabelsToLabelable`). So there is **no** token-side workaround for step 6's `@cursor` handoff
+comment — it must come from a maintainer or a comment-scoped token. (Verified live this run, three
+ways: REST comment 403, GraphQL `addComment` 403, label apply 403.)
+
 **Consequences / workarounds:**
 - Put **intended labels** as a line at the top of the issue **body** (can't be applied as real labels).
 - Embed the **`@cursor` engineering-agent handoff inside the issue body at creation time**
@@ -97,7 +104,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free)
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 9
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -112,7 +119,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed run 8 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–9 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -432,3 +439,57 @@ each issue:
   **#11** [after #10] / **#12**, then **#13** [after #4/#8] — and applying the intended labels listed atop each body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from run 7.
+
+### 2026-06-19 (run 9 — 20:00 UTC cron)
+- **Synced context (read this log first):** re-read `README.md`, then re-opened and re-verified the live
+  code directly (not just from this log): `commands/{learn,select}.ts`, `db/queries.ts`, `action.ts`,
+  `git/diff-analyzer.ts`, `utils/jest-runner.ts`, `.github/workflows/{ci,test}.yml`, `jest.config.js`,
+  `package.json`. Reviewed all open/closed issues, PRs, and the last 15 commits. **No PRs exist**
+  (`gh pr list --state all` empty). The last 6 commits are doc-only ticket-manager logs (`49d1d8c` run 8 …
+  `ccf3f48` run 2); **last product-code commit is still `2e0d7bc`** (`git diff --stat 2e0d7bc HEAD` = only
+  `docs/TICKET_MANAGER_LOG.md`) → no `src/`/`package.json` change since run 3, so
+  **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14 all remain valid as written**. Branch
+  `cursor/buildlens-issue-backlog-574e` == `origin/main` (0 ahead / 0 behind).
+- **Re-verified the two core bugs against live code:** `learn.ts:112-159` still builds the full
+  test×function **cross-product** (outer loop per test file `:112`, per-file `testBaseName` `:113` still
+  **dead**, inner loop over **all** merged-coverage files `:115`, `createLink` for every test×func
+  `:145-153`) → **#14**; `learn.ts:137-143` stores the Istanbul `normalizePath` absolute key + bare name +
+  `decl` lines while `select.ts:118-146` queries git-relative paths + ts-morph identity and
+  `queries.ts:67-78` demands exact equality → empty lookup → fallback at `select.ts:159-171` → **#4**.
+  Also re-confirmed: `queries.ts:5-6,16-17` still `VARCHAR(1000/500)` (**#10**); SQL all parameterized but
+  Postgres-specific (`SERIAL`/`ON CONFLICT`/`$n`/`= ANY($1::text[])`/`::int[]`) (**#11**); `action.ts:51-52`
+  hardcodes `tests-selected`/`tests-run` to `'0'` and `:24-29` env guards are dead (**#13**); `ci.yml:60`
+  lint is still `npm run lint || echo …` no-op + `ci.yml`/`test.yml` duplicate + single Node 20 × `postgres:15`
+  (**#8/#9**); `jest.config.js` still has **no** `coverageThreshold` (**#8**); `diff-analyzer.ts:60,88` raw
+  `console.error` + empty catches `:111-112,131-132,139-140,149-150` (**#9**); `jest-runner.ts:49` unquoted
+  `npx jest ${args.join(' ')}` (P3 watch, folds into #14).
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still absent** (re-checked: `Glob **/{REPO_OVERVIEW,AGENTS}.md` → 0
+  files; `Read` → File not found). The always-load step can't read them; source of truth stays `README.md` +
+  the `src/` tree. Exactly what **#12** fixes — no new ticket. Discrepancy noted per the always-load instruction.
+- **Refreshed advisory audit:** `npm audit --package-lock-only --omit=dev` = **7 production vulns
+  (1 critical, 3 high, 3 moderate)** — headline **unchanged** vs run 8 (`simple-git` RCE +
+  `@actions/github`→`@actions/http-client`→`undici`; fix = bump `@actions/github`→9.1.1 [breaking] +
+  `simple-git`→`^3.36.0`). **#7 already covers the fix + CI audit gate** → no new ticket.
+- **Integration STILL create-only — re-verified live this run THREE ways, incl. a new REST probe:**
+  `gh api -X POST .../issues/4/comments` → **REST 403**; `gh issue comment 6` → **GraphQL `addComment` 403**;
+  `gh issue edit 4 --add-label bug` → **`addLabelsToLabelable` 403** (all "Resource not accessible by
+  integration"). The REST probe is new evidence that the block is **token-scope**, not a `gh` quirk — so
+  **there is no token-side workaround** for step 6's `@cursor` handoff comment. Confirmed the handoff +
+  intended labels are already **embedded in each issue body** at creation (verified on #4 and #14:
+  body carries "Intended labels: …", a maintainer note about the create-only token, and the full
+  `@cursor please implement this issue.` block with read-`REPO_OVERVIEW`/`AGENTS`, acceptance criteria,
+  validation plan, house standards, and "open a PR that passes CI").
+- **Decision — filed 0 NEW issues this run.** Honors *"≤2/run, quality over volume, skip if the backlog is
+  healthy"* **and** the user's explicit *"15 tickets max; don't create more if already open."* The backlog is
+  healthy at **11 open** and covers **every** audit dimension (correctness #4/#14, E2E #5, security #7,
+  CI/release #8, lint/code-quality #9, DB hygiene #10, SQLite #11, docs #12, Action outputs #13); product code
+  is **unchanged since run 3**; and every remaining unfiled candidate is low-leverage (dependency currency —
+  don't churn; `learn.ts:62-73` fragile test-name JSON parse — folds into #14; `jest-runner.ts:49` unquoted
+  `execSync` — theoretical/internal). Filing any would be busywork. 4 slots remain free under the cap.
+- **Bottleneck unchanged after 9 runs:** no `@cursor` handoff has ever been dispatchable by the bot and
+  **no PRs exist**. The single highest-leverage action remains a **maintainer (or a comment-scoped token)**
+  commenting `@cursor please implement this issue.` on **#4 first**, then **#14 → #5**, then **#7 → #8**, then
+  **#9/#10**, then **#11** [after #10] / **#12**, then **#13** [after #4/#8] — and applying the intended labels
+  listed atop each body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–8.
