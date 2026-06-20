@@ -104,7 +104,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 9
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 10
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -119,7 +119,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–9 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–10 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -141,6 +141,18 @@ blocks a feature; don't churn for fashion.
   Likely folds into #14's `learn` rework — revisit when #14 is picked up; don't file separately yet.
 - **P3/chore (watch, not filed)** — `jest-runner.ts:49-54` builds an unquoted `npx jest ${args.join(' ')}`
   for `execSync`; inputs are internal test-file paths today, so low risk — logged for future watch.
+- **Core-promise watch (NEW run 10; folds into #4/#5/#14 — not filed)** — `select.ts:140-146`
+  unconditionally adds **every** stored function in each changed file (`repo.getFunctionsByFilePaths` →
+  `queries.ts:76-78 GET_FUNCTIONS_BY_FILE_PATHS`) to the impacted set, *on top of* the exact-match
+  per-function lookups (`select.ts:118-138`). So even after **#4** (identity) and **#14** (cross-product)
+  land, `select` degrades to **file-level** granularity (any test that ever touched *any* function in a
+  changed file), not the promised function-level. Today this block also misses (the query passes
+  git-relative `changedFunctions[].filePath` while `learn` stored absolute Istanbul keys — the same
+  mismatch as #4), so it contributes nothing yet. **#5**'s E2E strict-subset assertion will expose it,
+  and the **#4/#14** fix scope should condition/remove this broadening (or gate it behind the README
+  "expand selection when mapping incomplete" safety rule explicitly). Documented here rather than filed:
+  it is adjacent to #4/#14/#5 and filing it would fragment the cluster — honors ≤2/run, don't-churn, and
+  the user's "don't create more if we already have open."
 - ~~per-test-case coverage as a "feature"~~ → **reframed & filed as #14 (run 7)**: per-test-*file*
   attribution is a **correctness** fix; only finer per-*case* granularity (README line 252) remains a
   future P2 feature, and only after #4/#14 land.
@@ -493,3 +505,61 @@ each issue:
   listed atop each body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–8.
+
+### 2026-06-20 (run 10 — 20:00 UTC cron)
+- **Synced context (read this log + memory first):** re-read `README.md`, then re-opened and re-verified
+  the **live code** directly (not just from the log): `commands/{learn,select}.ts`, `db/queries.ts`,
+  `action.ts`, `action.yml`, `jest.config.js`, `.github/workflows/{ci,test}.yml`. Reviewed all
+  open/closed issues, all PRs, and the last 15 commits. **No PRs exist** (`gh pr list --state all` empty).
+  The last 7 commits are doc-only ticket-manager logs (`a156044` run 9 … `ccf3f48` run 2); **last
+  product-code commit is still `2e0d7bc`** (`git diff --stat 2e0d7bc HEAD` = only
+  `docs/TICKET_MANAGER_LOG.md`) → no `src/`/`package.json` change since run 3, so
+  **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14 all remain valid as written**. Branch
+  `cursor/buildlens-issue-backlog-f04d` == `origin/main` (0 ahead / 0 behind).
+- **Re-verified the core bugs against live code:** `learn.ts:137-143` still stores the absolute Istanbul
+  `normalizePath` key + bare Istanbul name + `decl` lines, while `select.ts:126-131` queries ts-morph
+  identity on git-relative paths and `queries.ts:67-78` demands exact equality → empty lookup → fallback
+  at `select.ts:159-171` (**#4**); `learn.ts:112-153` still has the **dead** per-file `testBaseName`
+  (`:113`) and links every test case × every covered function over Jest's merged coverage (**#14**).
+  Also re-confirmed `queries.ts:5-6,16-17` `VARCHAR(1000/500)` (**#10**); pg-specific SQL
+  (`SERIAL`/`ON CONFLICT`/`$n`/`= ANY($1::text[])`/`::int[]`) (**#11**); `action.ts:51-52` hardcodes
+  `tests-selected`/`tests-run` to `'0'` + dead env guards `:24-29` (**#13**); `ci.yml:60` lint is
+  `npm run lint || echo …` no-op, `ci.yml`/`test.yml` duplicate, single Node 20 × `postgres:15`,
+  `jest.config.js` has **no** `coverageThreshold` (**#8/#9**).
+- **NEW grounding this run (watch item, folded into #4/#5/#14 — not filed):** traced the full `select`
+  path end-to-end and found `select.ts:140-146` **unconditionally** adds every stored function in each
+  changed file (`getFunctionsByFilePaths`, `queries.ts:76-78`) on top of the exact-match lookups, so even
+  after #4 + #14 land, `select` would return a **file-level** set rather than function-level. Recorded in
+  the unfiled queue with precise lines and routed into the #4/#14 fix scope + #5's strict-subset
+  assertion. Not filed separately (adjacent to the existing core-promise cluster; honors ≤2/run +
+  don't-churn + the user's "don't create more if we already have open").
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still absent** (re-checked: `Glob **/{REPO_OVERVIEW,AGENTS}.md` → 0
+  files; `Read` → File not found). The always-load step still can't read them; source of truth stays
+  `README.md` + the `src/` tree. Exactly what **#12** fixes — no new ticket. Discrepancy noted per the
+  always-load instruction.
+- **Build/test + audit:** `node_modules` is **absent** in this VM → `npm run build` / `npm audit` are
+  **not cheap** (would need `npm ci` over the network), so skipped per "build/test if cheap." Code is
+  unchanged since run 3 and prior runs confirmed a green build, so no regression risk from skipping.
+  Carrying the last-known production audit (**7 vulns: 1 crit, 3 high, 3 mod** — `simple-git` RCE +
+  `@actions/github`→undici) for the digest; **#7 still covers** the fix + CI gate.
+- **`gh` used READ-ONLY this run** (per this environment's operating constraint — `gh` is restricted to
+  read operations and there is no sanctioned issue-write tool available). No issue create/comment/label
+  was attempted. Independently of tooling, the **correct** ticket-management decision this run is **0 new
+  issues** (see below). Prior runs documented the integration token as *create-only* and
+  comment/label-blocked (REST + GraphQL 403), so the user's step-6 `@cursor` handoff comment still
+  requires a **maintainer or a comment-scoped token** regardless.
+- **Decision — filed 0 NEW issues.** The backlog is healthy at **11 open** and covers **every** audit
+  dimension (correctness #4/#14, E2E #5, security #7, CI/release #8, lint/code-quality #9, DB hygiene #10,
+  SQLite #11, docs #12, Action outputs #13); product code is **unchanged since run 3**; and every
+  remaining candidate is low-leverage or adjacent (dependency currency — don't churn; `learn.ts:62-73`
+  fragile JSON parse — folds into #14; `jest-runner.ts:49` unquoted `execSync` — theoretical/internal;
+  the new `select.ts:140-146` file-level broadening — folds into #4/#14/#5). Filing any would be busywork.
+  Honors *"≤2/run, quality over volume, skip if healthy"* **and** the user's explicit *"≤15 max; don't
+  create more if already open."* 4 slots remain free under the cap.
+- **Bottleneck unchanged after 10 runs:** no `@cursor` handoff has ever been dispatchable by the bot and
+  **no PRs exist** — product code has never changed. The single highest-leverage action remains a
+  **maintainer (or a comment-scoped token)** commenting `@cursor please implement this issue.` on **#4
+  first**, then **#14 → #5**, then **#7 → #8**, then **#9/#10**, then **#11** [after #10] / **#12**, then
+  **#13** [after #4/#8] — and applying the intended labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots
+  free**. Unchanged from runs 7–9.
