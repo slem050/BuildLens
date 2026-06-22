@@ -104,7 +104,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 11
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 12
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -119,7 +119,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–11 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–12 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -624,3 +624,63 @@ each issue:
   **#13** [after #4/#8] — and applying the intended labels listed atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots
   free**. Unchanged from runs 7–10.
+
+### 2026-06-22 (run 12 — 20:00 UTC cron)
+- **Synced context (read this log + always-load step + memory first):** re-read `README.md`, then
+  re-opened and re-verified the **live code** directly (not just from the log): `commands/{learn,select}.ts`,
+  `db/queries.ts`, `action.ts`, `git/diff-analyzer.ts`, `.github/workflows/{ci,test}.yml`, `jest.config.js`.
+  Reviewed all open/closed issues, all PRs, and the last 15 commits. **No PRs exist** (`gh pr list --state all`
+  empty). The last 9 commits are doc-only ticket-manager logs (`fa0c1aa` run 11 … `ccf3f48` run 2);
+  **last product-code commit is still `2e0d7bc`** (`git diff --stat 2e0d7bc HEAD` = only
+  `docs/TICKET_MANAGER_LOG.md`) → no `src/`/`package.json` change since run 3, so
+  **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14 all remain valid as written**. Branch
+  `cursor/buildlens-issue-backlog-5e8c` == `origin/main` at `fa0c1aa` (0 ahead / 0 behind).
+- **Re-verified the two core bugs + all ticket anchors against live code, with exact lines:**
+  - **#14 (cross-product over-linking):** `learn.ts:112` outer loop per test file; `:113` `testBaseName`
+    still **dead** (computed, never used); `:115` inner loop over **all** files in Jest's *merged*
+    `coverageData`; `:131-143` upsert every covered function then `:145-153` `createLink(testRecord.id, func.id)`
+    for **every** test case × **every** covered function → full bipartite. Even with #4 fixed, `select`
+    returns the whole suite.
+  - **#4 (path/identity mismatch):** `learn.ts:138` stores `coverageParser.normalizePath(filePath)` (absolute
+    Istanbul key) + `:133` bare Istanbul `name` + `:134-135` `decl` lines, while `select.ts:126-131` queries
+    git-relative path + ts-morph identity (`Class.method`) + full span; `queries.ts:67-70` (`GET_FUNCTION`)
+    **and** `:76-78` (`GET_FUNCTIONS_BY_FILE_PATHS`, `= ANY($1::text[])`) demand exact equality → empty lookup
+    → fallback at `select.ts:159-171`.
+  - **`select.ts:140-146` file-level broadening** still present (run-10 watch item): unconditionally adds every
+    stored function in each changed file on top of the per-function lookups → file-level (not function-level)
+    granularity once #4/#14 land. Folds into #4/#14/#5 — not filed (would fragment the cluster).
+  - Also re-confirmed: `queries.ts:5-6,16-17,20` `VARCHAR(1000/500/40)` (**#10**); SQL parameterized +
+    centralized in `SqlQueries` (house standard ✓) but Postgres-specific (`SERIAL`/`ON CONFLICT`/
+    `= ANY($1::text[])`/`::int[]`) (**#11**); `action.ts:51-52` hardcodes `tests-selected`/`tests-run` to `'0'`
+    + `:24-29` dead `GITHUB_BASE_REF`/`GITHUB_SHA` guards (**#13**); `ci.yml:60` lint = `npm run lint || echo …`
+    no-op, `ci.yml` & `test.yml` **duplicate** (both single Node 20 × `postgres:15`, no matrix),
+    `jest.config.js` has **no** `coverageThreshold`, `diff-analyzer.ts:60,88` raw `console.error` + empty
+    catches `:111,:131,:139,:149` (**#8/#9**).
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still absent** (re-checked: `Glob **/{REPO_OVERVIEW,AGENTS}.md` → 0 files;
+  `Read` → File not found). The always-load step still can't read them; source of truth stays `README.md` +
+  the `src/` tree. Exactly what **#12** fixes — no new ticket. Discrepancy noted per the always-load instruction.
+- **Build/test + audit not cheap:** `node_modules` absent in this VM → `npm ci`/`build`/`audit` would need the
+  network, skipped per "build/test if cheap." Code unchanged since run 3 and prior runs confirmed a green build
+  → no regression risk. Carrying last-known **production** audit (**7 vulns: 1 critical, 3 high, 3 moderate** —
+  `simple-git` RCE + `@actions/github`→`@actions/http-client`→`undici`) for the digest; **#7 covers** fix + CI gate.
+- **`gh` is READ-ONLY this environment (runs 10–12):** the system prompt restricts `gh` to read operations and
+  there is **no sanctioned issue-write tool** (no MCP, no issue-create/comment/label tool). Confirmed token is
+  `ghs_…` GitHub-App account `cursor`. No issue create/comment/label attempted. Independently, prior runs proved
+  the integration token is **create-only** and comment/label-blocked (REST + GraphQL 403), so the user's step-6
+  `@cursor` handoff comment still requires a **maintainer or a comment-scoped token** regardless. Net: **the bot
+  cannot dispatch the engineering agent.**
+- **Decision — filed 0 NEW issues.** The backlog is healthy at **11 open** and covers **every** audit dimension
+  (correctness #4/#14, E2E #5, security #7, CI/release #8, lint/code-quality #9, DB hygiene #10, SQLite #11,
+  docs #12, Action outputs #13); product code is **unchanged since run 3**; and every remaining candidate is
+  low-leverage or adjacent (dependency currency `commander ^11`→15 / `ts-morph ^21`→28 — don't churn;
+  `learn.ts:62-73` fragile test-name JSON parse — folds into #14; `jest-runner.ts:49` unquoted `execSync` —
+  theoretical/internal; the `select.ts:140-146` file-level broadening — folds into #4/#14/#5). Filing any would
+  be busywork. Honors *"≤2/run, quality over volume, skip if healthy"* **and** the user's explicit *"≤15 max;
+  don't create more if already open."* 4 slots remain free under the cap.
+- **Bottleneck unchanged after 12 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no
+  PRs exist** — product code has never changed. The single highest-leverage action remains a **maintainer (or a
+  comment-scoped token)** commenting `@cursor please implement this issue.` on **#4 first**, then **#14 → #5**,
+  then **#7 → #8**, then **#9/#10**, then **#11** [after #10] / **#12**, then **#13** [after #4/#8] — and applying
+  the intended labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–11.
