@@ -42,9 +42,16 @@ ways: REST comment 403, GraphQL `addComment` 403, label apply 403.)
 - No MCP servers are available.
 
 ## ⚠️ Repo discrepancies / gaps (cite when relevant; don't invent busywork)
-- **`REPO_OVERVIEW.md` and `AGENTS.md` do NOT exist**, although the process treats them as the
-  shared source of truth and handoffs ask agents to read them. Today the source of truth is
-  **`README.md`** + the actual `src/` tree. *Recommended follow-up:* add both files.
+- **`REPO_OVERVIEW.md` and `AGENTS.md` now EXIST — but only on branch
+  `origin/cursor/setup-dev-environment-894a`** (commits `2f4cd23`, `f5a0ff5`), **NOT on `main`, and there is
+  no PR to merge them** (discovered run 13, 2026-06-23; runs 1–12 correctly reported them absent from `main`).
+  They were added by the Cursor Cloud setup/onboarding process, not by an engineering agent on a ticket. The
+  always-load step still can't read them from `main`; run 13 read them from the setup branch. **This is the
+  genuinely-new status for #12** (now: *merge/PR these two files to `main`* + still fix the stale README
+  "Project Structure"). `REPO_OVERVIEW.md` is **accurate vs current code except**: its §7 lists
+  `coverage/parser.ts#parseTestNames` as dead, but it is actually used as a fallback at `learn.ts:69` (only
+  `extractFunctionMappings`, `parser.ts:57`, is truly dead — verified by grep). Until merged, the source of
+  truth on `main` stays **`README.md`** + the `src/` tree.
 - `README.md` **"Project Structure" is stale**: lists `src/db/schema.sql` and only
   `src/db/repository.ts`; the real DB layer is
   `src/db/{interface,database,postgres-database,queries,repository}.ts`, plus `src/action.ts`.
@@ -104,7 +111,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 12
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 13
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -119,7 +126,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–12 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–13 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -132,8 +139,26 @@ blocks a feature; don't churn for fashion.
    **#10** (DB hygiene), then P2s **#11/#12/#13**.
 
 ### Unfiled backlog queue (next candidates, in priority order)
+- **P1/bug-feature (NEW run 13) — `select` ignores the working tree (committed diff only). TOP of the
+  queue.** `DiffAnalyzer.getChangedFiles` (`diff-analyzer.ts:32-63`) only diffs committed refs
+  (`diffSummary([baseRef, currentRef])`), and `getCurrentRef` (`:101-119`) resolves `currentRef` to
+  `GITHUB_SHA`/branch/`HEAD` — **always committed**; there is **no** uncommitted/staged path (no `git diff`,
+  no `--cached`, no worktree-vs-`HEAD`). So the README local-dev workflow ("Fast feedback on changes",
+  `README:143-151`, `buildlens select`) sees **zero** changed functions for uncommitted edits → always full
+  fallback (`select.ts:159-171`). Distinct from #4 (identity), #14 (cross-product), #5 (E2E), #13 (Action
+  outputs). Listed **P1** in `REPO_OVERVIEW.md §7`. **Ready-to-file spec below.** Not filed this run only
+  because the bot can't create issues (gh read-only). #1 candidate to file when a write path exists (would be
+  12/15, under cap).
+- **P1/feature (NEW run 13) — no `prune`/`stats`/cleanup command.** `cli.ts:36-118` registers only
+  `learn`/`select`/`init`; the `functions` table carries `commit_hash` (`queries.ts:20`) and rows accumulate
+  across commits with no way to prune stale rows or inspect mapping coverage. Listed **P1** in
+  `REPO_OVERVIEW.md §7`. Lower-leverage than the working-tree gap (maintenance/observability, not a
+  correctness break) — second in the queue.
+- **P3/chore (NEW run 13, folds into #9) — dead code `extractFunctionMappings`** (`coverage/parser.ts:57`)
+  is never called anywhere in `src/` (verified by grep). #9's "no dead code" scope should remove it. (Note:
+  `parseTestNames`/`getCoveredFiles` ARE used — `learn.ts:69,58` — so only `extractFunctionMappings` is dead.)
 - **P2/chore** — dependency currency (`commander ^11`→15, `ts-morph ^21`→28; `package.json:44,47`) —
-  low urgency, don't churn (`chalk` stays v4 = CJS). **Top of the queue now.**
+  low urgency, don't churn (`chalk` stays v4 = CJS).
 - **P3/chore (watch, not filed)** — `learn.ts:62-73` test-name JSON parse is fragile: it regex-greps
   `/\{[\s\S]*\}/` out of mixed `--json`+`--coverage=text` output (`jest-runner.ts:36-38`); if it fails,
   `testNames` is empty → `testFileMap` empty → **0 links** created silently. Also `parseTestNamesFromJson`
@@ -163,7 +188,9 @@ blocks a feature; don't churn for fashion.
 `path`, `fallback`, `select`, `subset`, `e2e`, `lint`, `eslint`, `prettier`, `engines`, `nvmrc`,
 `matrix`, `sqlite`, `migration`, `varchar`, `ssl`, `dist artifact`, `REPO_OVERVIEW`, `AGENTS`,
 `action.ts`, `tests-selected`, `tests-run`, `setOutput`, `base-ref`, `action output`,
-`cross-product`, `over-link`, `createLink`, `per-test`, `attribution`, `bipartite`.
+`cross-product`, `over-link`, `createLink`, `per-test`, `attribution`, `bipartite`,
+`working tree`, `working-tree`, `uncommitted`, `unstaged`, `staged`, `--cached`, `getChangedFiles`,
+`prune`, `stats`, `cleanup`, `cli command`, `dead code`, `extractFunctionMappings`.
 
 ## Ready-to-use `@cursor` handoffs (paste as a comment to kick off the agent)
 Because the bot can't comment, the maintainer can trigger the engineering agent by commenting on
@@ -212,6 +239,76 @@ each issue:
   Node 20 × `postgres:15` (port 5433) with `npm run build && npm run test:ci` + a unit test (subset &
   fallback counts via `withTestDb`) + an Action-output test spying on `@actions/core`; rebuild `dist/`
   (coordinate with #8); open a PR that passes CI.
+
+## Ready-to-file ticket (run 13) — NOT yet filed (bot can't create issues; gh read-only)
+> File this when a write path exists (maintainer or a comment-scoped token). It is the #1 unfiled candidate
+> and honors the 15-cap (would be 12/15). Intended labels: **P1, enhancement, bug**.
+
+**Title:** Make `select` detect working-tree (uncommitted/staged) changes, not just committed diffs
+
+**Problem:** `buildlens select` only analyzes the **committed** diff between a base ref and a committed
+current ref. In the documented local-dev workflow (`README:143-151` — "Fast feedback on changes" via
+`buildlens select`), a developer's edits are typically **uncommitted**, so `select` detects **zero** changed
+functions and falls back to running the **entire** suite (`select.ts:159-171`). This silently defeats the
+core promise (run a reduced subset) for the most common local use case.
+
+**Evidence:**
+- `src/git/diff-analyzer.ts:32-63` — `getChangedFiles(baseBranch)` computes
+  `this.git.diffSummary([baseRef, currentRef])` + per-file `this.git.diff([baseRef, currentRef, '--', f])`.
+- `src/git/diff-analyzer.ts:101-119` — `getCurrentRef()` resolves to `process.env.GITHUB_SHA`, else the
+  branch name, else `HEAD` — **always a committed ref**; never the working tree or index.
+- No `--cached`/staged or worktree diff path exists anywhere in `DiffAnalyzer`.
+- `src/commands/select.ts` consumes only `getChangedFiles(...)`; with uncommitted edits it gets `[]` →
+  `select.ts:159-171` falls back to all tests.
+- `REPO_OVERVIEW.md §7` (source of truth, on `cursor/setup-dev-environment-894a`) lists this as **P1**:
+  "`select` ignores the working tree (committed diff only)".
+- Repro: build, `learn`, edit a source function but **do not commit**, run `buildlens select --dry-run` →
+  reports a full-suite fallback rather than the impacted subset.
+
+**Proposed approach:**
+- Add a working-tree diff method to `DiffAnalyzer` (e.g. `getWorkingTreeChanges()` using `git diff` for
+  unstaged + `git diff --cached` for staged, optionally unioned with `baseRef..HEAD`), reusing the existing
+  `parseDiffLines`/`normalizePath`/`isSourceFile` helpers and the `ChangedFile` shape (de-dupe overlapping
+  ranges).
+- Add a `select` option (e.g. `--working-tree`/`--staged`, or include the working tree by default for local
+  runs with `--committed-only` to opt out) wired in `src/cli.ts:66-97` and the `SelectOptions` interface.
+- Coordinate with #4 (path identity) so working-tree paths match stored function identity, and with #13 so
+  counts/outputs reflect the chosen mode.
+
+**Standards & patterns:** CLI feature as a typed `Options` interface + `execute()` (exemplar
+`src/commands/select.ts`); all output via `Logger` (`src/utils/logger.ts`) — note `diff-analyzer.ts:60,88`
+already use raw `console.error` (see #9); explicit return types; no swallowed catches (see the empty catches
+`diff-analyzer.ts:111,131,139,149` — #9).
+
+**Validation plan:** Node 20 × `postgres:15` on port 5433 (`docker compose -f docker-compose.test.yml up -d`):
+`npm run build && npm run test:ci`. Add a `DiffAnalyzer` **unit test** (stub `simple-git`; assert staged +
+unstaged hunks are returned). Add/extend an **integration/E2E** case (pairs with #5) that edits a file
+**without committing** and asserts `select` chooses a SUBSET (not a full fallback). CI cell it must pass: the
+Node 20 × PG 15 lane in `.github/workflows/ci.yml` (and any matrix added by #8).
+
+**Acceptance criteria:**
+- [ ] `select` detects uncommitted (unstaged) **and** staged changes locally.
+- [ ] A documented option controls committed-only vs working-tree behavior; default sensible for local dev.
+- [ ] With an uncommitted edit, `select --dry-run` reports the impacted subset, not a full fallback (asserted by a test).
+- [ ] Unit test for the new `DiffAnalyzer` path; integration/E2E test for the no-commit subset case.
+- [ ] Output via `Logger`; explicit return types; no new swallowed errors.
+
+**Risk/dependencies:** soft-depends on #4 (identity) + #14 (cross-product) for the subset to be meaningful;
+coordinates with #5 (E2E subset) and #13 (Action outputs). Risk: double-counting when working-tree + committed
+ranges overlap — de-dupe ranges. Low blast radius (additive mode).
+
+**Effort (technical):** touches `src/git/diff-analyzer.ts` (new diff method + option plumbing),
+`src/commands/select.ts` + `src/cli.ts` (option), and `src/__tests__/` (unit + integration). Moderately
+invasive in `DiffAnalyzer`; additive elsewhere. No schema change.
+
+**@cursor handoff (paste as the issue's first comment to dispatch the engineer):**
+`@cursor please implement this issue.` First read `REPO_OVERVIEW.md` and `AGENTS.md` (currently on branch
+`cursor/setup-dev-environment-894a`) for context and the house coding standards. Implement the working-tree
+diff mode and option per the Proposed approach, satisfy the Acceptance criteria, and follow the Validation
+plan (Node 20 × PostgreSQL 15 on port 5433; `npm run build && npm run test:ci`; add the `DiffAnalyzer` unit
+test + the no-commit subset integration/E2E test). Keep SQL parameterized/centralized in `SqlQueries`, route
+output through `Logger`, use explicit return types, and keep tests proportional (no redundant tests/code).
+Open a PR that passes CI.
 
 ## Run log
 ### 2026-06-13
@@ -684,3 +781,51 @@ each issue:
   the intended labels listed atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–11.
+
+### 2026-06-23 (run 13 — 20:00 UTC cron)
+- **Synced context (read this log + memory + always-load step first):** re-read `README.md`, re-opened and
+  re-verified the **live code** (`commands/learn.ts`, `git/diff-analyzer.ts`, `cli.ts`, `coverage/parser.ts`,
+  `db/queries.ts`, `action.yml`), reviewed all open/closed issues, all PRs, and the last 15 commits. **No PRs
+  exist** (`gh pr list --state all` empty). Last 10 commits are doc-only ticket-manager logs (`3d0da91` run 12
+  … `ccf3f48` run 2); **last product-code commit is still `2e0d7bc`** (`git diff --stat 2e0d7bc origin/main` =
+  only `docs/TICKET_MANAGER_LOG.md`) → no `src/`/`package.json` change since run 3, so
+  **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14 all remain valid as written**. Branch
+  `cursor/buildlens-issue-backlog-aa21` == `origin/main` at `3d0da91` (0 ahead / 0 behind).
+- **BIG NEW FINDING — `REPO_OVERVIEW.md` + `AGENTS.md` now EXIST** (but only on branch
+  `origin/cursor/setup-dev-environment-894a`, commits `2f4cd23`/`f5a0ff5`; **NOT on `main`**, **no PR**).
+  Runs 1–12 correctly reported them absent from `main`. Added by the Cursor Cloud setup process, not by a
+  ticket. **Read them this run** from that branch (the always-load step finally has its source of truth).
+  This is the genuinely-new status for **#12** (now: *merge/PR these two files to `main`* + still fix the
+  stale README "Project Structure"). Would post this as a clarifying comment on #12, but the bot can't comment
+  (gh read-only) — recorded here instead. Validated `REPO_OVERVIEW.md` vs current code: **accurate**, except
+  §7 lists `parser.ts#parseTestNames` as dead when it's actually used at `learn.ts:69` (only
+  `extractFunctionMappings`, `parser.ts:57`, is truly dead) — minor staleness noted.
+- **TWO genuinely-new, grounded, non-duplicate candidates found** (dedup-checked: grepped all 10 open issue
+  bodies for `working tree|uncommitted|staged|--cached|prune|stats|cli.ts|getChangedFiles` → no matches):
+  - **[P1] `select` ignores the working tree (committed diff only)** — `diff-analyzer.ts:32-63` diffs only
+    `baseRef..currentRef` and `:101-119` resolves `currentRef` to a committed ref; no uncommitted/staged path.
+    Breaks README local-dev "fast feedback" (`README:143-151`) → always full fallback for uncommitted edits.
+    **Ready-to-file spec added above.** #1 unfiled candidate.
+  - **[P1] no `prune`/`stats`/cleanup command** — `cli.ts:36-118` only `learn`/`select`/`init`; `functions`
+    rows accumulate by `commit_hash` (`queries.ts:20`) with no cleanup/inspection. Queued #2.
+  Both are listed as **P1** in the now-readable `REPO_OVERVIEW.md §7`.
+- **Re-verified core bugs in live code:** **#14** `learn.ts:112-159` still a full test×function cross-product
+  (per-file `testBaseName` `:113` still **dead**; inner loop `:115` over all merged-coverage files;
+  `createLink(testRecord.id, func.id)` `:145-153` for every test×fn). **#4** `learn.ts:137-143` stores absolute
+  Istanbul `normalizePath` key + bare name + `decl` lines. **#10** `queries.ts:5-6,17,20` `VARCHAR(1000/500/40)`.
+  **#13** `action.yml:28-32` outputs vs hardcoded `'0'` (`action.ts:51-52`).
+- **`gh` is READ-ONLY this run** (system-prompt constraint; no issue-create/comment/label tool, no MCP). Did
+  **not** attempt issue writes. **Decision — filed 0 NEW issues**, BUT unlike runs 8–12 this run *did* surface
+  real new work (working-tree gap + prune/stats) — captured as a ready-to-file spec + queue rather than filed,
+  because (a) the bot physically cannot create issues here, and (b) it honors the user's *"≤15 max; don't
+  create more if already open; quality over volume."* Backlog stays healthy at **11 open** (4 slots free).
+- **Build/test/audit not cheap:** `node_modules` absent in this VM → skipped per "build/test if cheap"; code
+  unchanged since run 3 (green previously). Carry last-known prod audit (**7 vulns: 1 crit, 3 high, 3 mod** —
+  `simple-git` RCE + `@actions/github`→undici); **#7 covers** fix + CI gate.
+- **Bottleneck unchanged after 13 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no
+  PRs exist** — product code has never changed. Highest-leverage action remains a **maintainer (or a
+  comment-scoped token)** commenting `@cursor please implement this issue.` on **#4 first**, then **#14 → #5**,
+  then **#7 → #8**, then **#9/#10**, then **#11** [after #10] / **#12** (now just needs the setup-branch files
+  merged) / the new working-tree ticket, then **#13** [after #4/#8] — and applying intended labels.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–12.
