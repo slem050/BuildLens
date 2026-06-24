@@ -91,10 +91,12 @@ present **correctness** bug (per-test-*file* attribution is the floor; per-*case
 enhancement, README line 252).
 
 ## Verified dependency-security finding (grounds #7; re-run `npm audit --package-lock-only`)
-`npm audit` = **29 vulns (2 critical, 3 high, 22 moderate, 2 low)** as of run 6 (2026-06-16); was
-**9 (2 crit, 3 high, 3 mod, 1 low)** at run 3. The **critical/high headline is unchanged** (the
-moderate count rose as more advisories were published against the same pinned deps) — **#7 still
-fully covers it** (the fix bumps the same direct deps + adds the CI audit gate). Headline:
+`npm audit --package-lock-only` = **29 vulns (2 critical, 3 high, 22 moderate, 2 low)** total, and
+`--omit=dev` = **7 production vulns (1 critical, 3 high, 3 moderate)** — **re-confirmed live run 14
+(2026-06-24)**, identical headline to runs 6/8–13; was **9 (2 crit, 3 high, 3 mod, 1 low)** at run 3.
+The **critical/high headline is unchanged** (the moderate count rose as more advisories were published
+against the same pinned deps) — **#7 still fully covers it** (the fix bumps the same direct deps + adds
+the CI audit gate). Headline:
 - **`simple-git@^3.20.0` (DIRECT, `package.json:46`)** — **critical RCE** (`blockUnsafeOperationsPlugin`
   bypass) + command-execution / RCE (high). Used throughout `src/git/diff-analyzer.ts`
   (`simpleGit()` :29; `diffSummary` :39/:67; `diff` :47/:75; `revparse` :95/:107/:115; `fetch` :148).
@@ -111,7 +113,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 13
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 14
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -126,7 +128,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–13 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–14 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -149,11 +151,12 @@ blocks a feature; don't churn for fashion.
   outputs). Listed **P1** in `REPO_OVERVIEW.md §7`. **Ready-to-file spec below.** Not filed this run only
   because the bot can't create issues (gh read-only). #1 candidate to file when a write path exists (would be
   12/15, under cap).
-- **P1/feature (NEW run 13) — no `prune`/`stats`/cleanup command.** `cli.ts:36-118` registers only
-  `learn`/`select`/`init`; the `functions` table carries `commit_hash` (`queries.ts:20`) and rows accumulate
-  across commits with no way to prune stale rows or inspect mapping coverage. Listed **P1** in
-  `REPO_OVERVIEW.md §7`. Lower-leverage than the working-tree gap (maintenance/observability, not a
-  correctness break) — second in the queue.
+- **P1/feature (NEW run 13; full ready-to-file spec added run 14) — no `prune`/`stats`/cleanup command.**
+  `cli.ts:36-118` registers only `learn`/`select`/`init`; the `functions` table carries `commit_hash`
+  (`queries.ts:20`, indexed `:40`) and rows accumulate across commits with no way to prune stale rows or
+  inspect mapping coverage (only `CLEAR_TEST_LINKS`/`CLEAR_ALL_LINKS` exist, `queries.ts:99-103`). Listed
+  **P1** in `REPO_OVERVIEW.md §7`. Lower-leverage than the working-tree gap (maintenance/observability, not a
+  correctness break) — second in the queue. **Ready-to-file spec below ("Ready-to-file ticket (run 14)").**
 - **P3/chore (NEW run 13, folds into #9) — dead code `extractFunctionMappings`** (`coverage/parser.ts:57`)
   is never called anywhere in `src/` (verified by grep). #9's "no dead code" scope should remove it. (Note:
   `parseTestNames`/`getCoveredFiles` ARE used — `learn.ts:69,58` — so only `extractFunctionMappings` is dead.)
@@ -308,6 +311,74 @@ diff mode and option per the Proposed approach, satisfy the Acceptance criteria,
 plan (Node 20 × PostgreSQL 15 on port 5433; `npm run build && npm run test:ci`; add the `DiffAnalyzer` unit
 test + the no-commit subset integration/E2E test). Keep SQL parameterized/centralized in `SqlQueries`, route
 output through `Logger`, use explicit return types, and keep tests proportional (no redundant tests/code).
+Open a PR that passes CI.
+
+## Ready-to-file ticket (run 14) — NOT yet filed (bot can't create issues; gh read-only)
+> File this when a write path exists (maintainer or a comment-scoped token). **Second** unfiled candidate,
+> after the working-tree ticket above. Honors the 15-cap (working-tree would be 12/15, this 13/15). Intended
+> labels: **P1, enhancement**.
+
+**Title:** Add `prune` and `stats` CLI commands to clean up stale mappings and inspect mapping coverage
+
+**Problem:** BuildLens accumulates `functions`/`tests`/`test_function_links` rows on every `learn` run
+(functions keyed by `commit_hash`) with **no** way to remove stale rows or inspect how much of the codebase is
+mapped. Over many commits the `functions` table fills with rows from old commits whose line ranges no longer
+exist — bloating the DB and (once #4/#14 land) eroding selection precision. There is also no observability
+command to answer "how many functions/tests/links are stored, and what's the mapping coverage?", which the
+README "Safety Rules" ("Log what tests were selected & why") implies should be inspectable.
+
+**Evidence:**
+- `src/cli.ts:36-118` registers exactly three commands — `learn`, `select`, `init`. No `prune`/`stats`/`cleanup`.
+- `src/db/queries.ts:13-25` — `functions` carries `commit_hash VARCHAR(40)` (`:20`) and is indexed on it
+  (`:40` `idx_functions_commit_hash`), but no query ever filters or deletes by it; rows only accumulate.
+- `src/db/queries.ts:99-103` — only `CLEAR_TEST_LINKS`/`CLEAR_ALL_LINKS` exist; there is no delete-by-commit
+  or count/aggregate query, and `Repository` (`src/db/repository.ts`) exposes none.
+- `REPO_OVERVIEW.md §7` (source of truth, on `cursor/setup-dev-environment-894a`) lists **"no `prune`/`stats`
+  command or stale-data cleanup"** as a **P1** gap.
+
+**Proposed approach:**
+- Add two command classes with a typed `Options` interface + `execute()` (exemplars
+  `src/commands/{learn,select}.ts`): `PruneCommand` (delete rows whose `commit_hash` differs from current
+  HEAD, or an explicit `--before <sha>`/`--all`; cascades to `test_function_links` via the existing FK
+  `ON DELETE CASCADE`, `queries.ts:30-31`) and `StatsCommand` (print counts of tests, functions, links,
+  orphaned functions, and per-file mapping coverage).
+- Add the parameterized queries to `SqlQueries` (`src/db/queries.ts`) and the data-access methods to
+  `Repository` + `DatabaseAdapter` (`src/db/{repository,interface}.ts`) — never inline SQL.
+- Wire both into `src/cli.ts` alongside `learn`/`select`/`init`; all output via `Logger`.
+
+**Standards & patterns:** CLI feature = command class + typed `Options` + `execute()` (exemplar
+`src/commands/select.ts`); all SQL parameterized + centralized in `SqlQueries` (exemplar `src/db/queries.ts`);
+DB access through `Repository`/`DatabaseAdapter` (exemplars `src/db/{repository,interface}.ts`); all output via
+`Logger` (`src/utils/logger.ts`); explicit return types; idempotent/guarded deletes.
+
+**Validation plan:** Node 20 × `postgres:15` on port 5433 (`docker compose -f docker-compose.test.yml up -d`):
+`npm run build && npm run test:ci`. Add a **Repository integration test** (via `withTestDb`) seeding rows for
+two commit hashes and asserting `prune --before <sha>` removes only stale rows and cascades links, plus a
+`stats` test asserting the printed counts. CI cell: the Node 20 × PG 15 lane in `.github/workflows/ci.yml`
+(and any matrix added by #8).
+
+**Acceptance criteria:**
+- [ ] `buildlens prune` removes stale-commit rows (default: keep current HEAD; `--before <sha>`/`--all` options) and cascades to links.
+- [ ] `buildlens stats` prints tests/functions/links counts + orphan/coverage summary via `Logger`.
+- [ ] New SQL lives in `SqlQueries` (parameterized) and is reached through `Repository`/`DatabaseAdapter`.
+- [ ] Integration tests for prune (cascade + commit filter) and stats (counts).
+- [ ] Explicit return types; no raw `console.*`; no swallowed errors.
+
+**Risk/dependencies:** independent of #4/#14 but most valuable after them (precision). Risk: an over-broad
+prune could delete still-valid mappings — default conservative (keep HEAD); require an explicit flag for
+destructive scope. Low blast radius (additive commands; deletes guarded by FK cascade).
+
+**Effort (technical):** new `src/commands/{prune,stats}.ts`, additions to
+`src/db/{queries,repository,interface}.ts`, wiring in `src/cli.ts`, and `src/__tests__/` integration tests.
+Additive; **no schema change** (reuses existing `commit_hash` + FK cascade). Moderate surface, low risk.
+
+**@cursor handoff (paste as the issue's first comment to dispatch the engineer):**
+`@cursor please implement this issue.` First read `REPO_OVERVIEW.md` and `AGENTS.md` (currently on branch
+`cursor/setup-dev-environment-894a`) for context and house standards. Add the `prune`/`stats` command classes +
+parameterized `SqlQueries` + `Repository` methods per the Proposed approach, satisfy the Acceptance criteria,
+and follow the Validation plan (Node 20 × PostgreSQL 15 on port 5433; `npm run build && npm run test:ci`; add the
+prune cascade/commit-filter + stats-count integration tests via `withTestDb`). Keep SQL parameterized/centralized,
+route output through `Logger`, use explicit return types, and keep tests proportional (no redundant tests/code).
 Open a PR that passes CI.
 
 ## Run log
@@ -829,3 +900,77 @@ Open a PR that passes CI.
   merged) / the new working-tree ticket, then **#13** [after #4/#8] — and applying intended labels.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–12.
+
+### 2026-06-24 (run 14 — 20:00 UTC cron)
+- **Synced context (read this log + always-load step + memory first):** read `REPO_OVERVIEW.md` + `AGENTS.md`
+  from `origin/cursor/setup-dev-environment-894a` (still the only place they exist — see below), re-read
+  `README.md`, and re-opened + **re-verified the live code directly** (not just from this log):
+  `commands/{learn,select}.ts`, `db/queries.ts`, `action.ts`, `git/diff-analyzer.ts`, `cli.ts`,
+  `coverage/parser.ts`, `jest.config.js`, `.github/workflows/{ci,test}.yml`. Reviewed all open/closed issues,
+  all PRs, and the last 15 commits. **No PRs exist** (`gh pr list --state all` empty). The last 11 commits are
+  doc-only ticket-manager logs (`069a395` run 13 … `ccf3f48` run 2); **last product-code commit is still
+  `2e0d7bc`** (`git diff --stat 2e0d7bc origin/main` = only `docs/TICKET_MANAGER_LOG.md`) → no `src/`/`package.json`
+  change since run 3, so **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14 all remain valid as written**. Branch
+  `cursor/buildlens-issue-backlog-4464` == `origin/main` at `069a395` (0 ahead / 0 behind at start).
+- **Re-verified every ticket anchor in live code, with exact lines (full re-grounding, not log-trust):**
+  - **#14 (cross-product over-linking):** `learn.ts:112` outer loop per test file; `:113` `testBaseName` still
+    **dead** (computed, never used); `:115` inner loop over **all** files in Jest's *merged* `coverageData`;
+    `:131-143` upsert every covered function; `:145-153` `createLink(testRecord.id, func.id)` for **every** test
+    case × **every** covered function → full bipartite.
+  - **#4 (path/identity mismatch):** `learn.ts:138` stores `coverageParser.normalizePath(filePath)` (absolute
+    Istanbul key) + `:133` bare Istanbul `name` + `:134-135` `decl` lines, while `select.ts:126-131` queries
+    git-relative path + ts-morph identity; `queries.ts:67-70` (`GET_FUNCTION`) **and** `:76-78`
+    (`GET_FUNCTIONS_BY_FILE_PATHS`, `= ANY($1::text[])`) demand exact equality → empty lookup → fallback
+    `select.ts:159-171`.
+  - **`select.ts:140-146` file-level broadening** still present (run-10 watch item) — folds into #4/#14/#5.
+  - **#10:** `queries.ts:5-6,17,20` `VARCHAR(1000/500/40)`; SQL parameterized + centralized in `SqlQueries`
+    (house standard ✓) but Postgres-specific (`SERIAL`/`ON CONFLICT`/`= ANY($1::text[])`/`::int[]`).
+  - **#13:** `action.ts:51-52` hardcodes `tests-selected`/`tests-run` to `'0'`; `:24-29` dead
+    `GITHUB_BASE_REF`/`GITHUB_SHA` guards (reassign only if already set).
+  - **#8/#9:** `package.json:20` lint = `echo`; `ci.yml:60` lint = `npm run lint || echo …` no-op; `ci.yml` &
+    `test.yml` **duplicate** (both single Node 20 × `postgres:15`, no matrix); `jest.config.js` has **no**
+    `coverageThreshold`; `diff-analyzer.ts:60,88` raw `console.error` + empty catches `:111,:131,:139,:149`.
+  - **prune/stats gap:** `cli.ts:36-118` registers only `learn`/`select`/`init`; `functions.commit_hash`
+    (`queries.ts:20`, indexed `:40`) is never filtered/deleted; only `CLEAR_*_LINKS` exist (`:99-103`).
+  - **working-tree gap:** `diff-analyzer.ts:32-63` diffs only `[baseRef, currentRef]`; `getCurrentRef` `:101-119`
+    resolves to a committed ref only (no `--cached`/worktree path).
+  - **Dead code:** `coverage/parser.ts:57 extractFunctionMappings` has **no callers** in `src/` (grep) → truly
+    dead; but `parseTestNames` (`:124`) **is** used at `learn.ts:69` and `parseTestNamesFromJson`
+    (`jest-runner.ts:103`) at `learn.ts:67`. **Discrepancy flagged:** `REPO_OVERVIEW.md §7` lists `parseTestNames`
+    as dead — it is **not**; only `extractFunctionMappings` is. (Per the always-load "flag stale overview" rule;
+    folds into #9's dead-code scope + a one-line #12 overview fix.)
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still only on `origin/cursor/setup-dev-environment-894a`** (commits
+  `2f4cd23`/`f5a0ff5`), **NOT on `main`, no PR** (`git ls-tree origin/main` has neither). This stays the live
+  status for **#12** (merge/PR the two files to `main` + fix the stale README "Project Structure"). NB: `AGENTS.md`
+  describes the *setup* VM (native PG 16 on port 5433); **this Ticket-Manager VM has neither PostgreSQL nor
+  Docker** (`which psql/pg_ctl/postgres/docker` → none), so a real DB-backed E2E repro of #4/#14 is **not runnable
+  here** — the registry-only audit below is the cheap verification that's possible.
+- **Refreshed advisory audit (npm registry reachable this run, so cheap; `--package-lock-only`):** **production
+  (`--omit=dev`) = 7 vulns (1 critical, 3 high, 3 moderate)** — `simple-git` critical RCE + `@actions/github`(6–8)
+  → `@actions/http-client` → `undici` (7 undici advisories); **full (incl. dev) = 29 vulns (2 critical, 3 high,
+  22 moderate, 2 low)**. Identical headline to runs 6/8–13. **#7 already covers** the fix (bump
+  `simple-git`→`^3.36.0` + `@actions/github`→`9.1.1` [breaking] + `npm audit fix`) + the CI audit gate → no new ticket.
+- **`gh` is READ-ONLY this environment (runs 10–14):** the system prompt restricts `gh` to read ops and there is
+  **no sanctioned issue-write tool** (no MCP; no issue create/comment/label tool in the toolset). No issue write
+  attempted. Prior runs additionally proved the integration token is **create-only** and comment/label-blocked
+  (REST + GraphQL 403). Net: **the bot cannot create issues or dispatch the `@cursor` engineering agent** — that
+  still needs a maintainer or a comment-scoped token.
+- **Decision — filed 0 NEW issues.** The backlog is healthy at **11 open** and covers **every** audit dimension
+  (correctness #4/#14, E2E #5, security #7, CI/release #8, lint/code-quality #9, DB hygiene #10, SQLite #11, docs
+  #12, Action outputs #13); product code is **unchanged since run 3**; and the only unfiled candidates are the two
+  run-13 finds (working-tree gap, prune/stats — **both now have full ready-to-file specs above**) plus low-leverage
+  items (dependency currency — don't churn; `learn.ts:62-73` fragile JSON parse — folds into #14; `jest-runner.ts:49`
+  unquoted `execSync` — theoretical/internal; `select.ts:140-146` file-level broadening — folds into #4/#14/#5).
+  Honors *"≤2/run, quality over volume, skip if healthy"* **and** the user's explicit *"≤15 max; don't create more
+  if already open."* 4 slots remain free under the cap.
+- **Forward progress this run:** promoted the **prune/stats** candidate to a full **ready-to-file spec** (so both
+  top unfiled candidates are now instantly fileable the moment a write path exists), refreshed the live dependency
+  audit (7 prod / 29 total — unchanged), and re-grounded every ticket anchor against current code with exact lines.
+- **Bottleneck unchanged after 14 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. Highest-leverage action remains a **maintainer (or a comment-scoped
+  token)** commenting `@cursor please implement this issue.` on **#4 first**, then **#14 → #5**, then **#7 → #8**,
+  then **#9/#10**, then **#11** [after #10] / **#12** (now just needs the setup-branch files merged) / the
+  working-tree + prune/stats tickets, then **#13** [after #4/#8] — and applying the intended labels listed atop
+  each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–13.
