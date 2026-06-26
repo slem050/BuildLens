@@ -92,8 +92,8 @@ enhancement, README line 252).
 
 ## Verified dependency-security finding (grounds #7; re-run `npm audit --package-lock-only`)
 `npm audit --package-lock-only` = **29 vulns (2 critical, 3 high, 22 moderate, 2 low)** total, and
-`--omit=dev` = **7 production vulns (1 critical, 3 high, 3 moderate)** — **re-confirmed live run 15
-(2026-06-25)**, identical headline to runs 6/8–14; was **9 (2 crit, 3 high, 3 mod, 1 low)** at run 3.
+`--omit=dev` = **7 production vulns (1 critical, 3 high, 3 moderate)** — **prod re-confirmed live run 16
+(2026-06-26)**, identical headline to runs 6/8–15; was **9 (2 crit, 3 high, 3 mod, 1 low)** at run 3.
 The **critical/high headline is unchanged** (the moderate count rose as more advisories were published
 against the same pinned deps) — **#7 still fully covers it** (the fix bumps the same direct deps + adds
 the CI audit gate). Headline:
@@ -113,7 +113,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 15
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 16
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -128,7 +128,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–15 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–16 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -1054,3 +1054,61 @@ Open a PR that passes CI.
   labels listed atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–14.
+
+### 2026-06-26 (run 16 — 20:00 UTC cron)
+- **Synced context (read this log + automation memory + always-load step first):** read `REPO_OVERVIEW.md` +
+  `AGENTS.md` from `origin/cursor/setup-dev-environment-894a` (still the only place they exist), re-read
+  `README.md`, and re-grounded the live code directly (grep, not log-trust). Reviewed all open/closed issues,
+  all PRs, and the last 15 commits. **No PRs exist** (`gh pr list --state all` empty). The last 13 commits are
+  doc-only ticket-manager logs (`2e5f237` run 15 … `ccf3f48` run 2); **last product-code commit is still
+  `2e0d7bc`** (`git diff --stat 2e0d7bc HEAD -- src package.json action.yml jest.config.js .github` = **empty**)
+  → no `src/`/config change since run 3, so **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14 all remain valid as written**.
+  Branch `cursor/buildlens-issue-backlog-5345` == `origin/main` at `2e5f237` (0 ahead / 0 behind at start).
+- **Re-grounded key anchors in live code (grep, exact lines):** **#14** `learn.ts:113` `testBaseName` computed
+  but never used (dead — single occurrence in `learn.ts`); `learn.ts:151` `createLink(testRecord.id, func.id)`
+  inside the per-test × per-covered-fn loops → full bipartite. **#4 / file-broadening** `select.ts:141`
+  `getFunctionsByFilePaths` + `:150` `getTestsForFunctions`. **Dead code** `coverage/parser.ts:57
+  extractFunctionMappings` has **no callers** in `src/` (grep returns only its definition) → truly dead, while
+  `parseTestNames` (`:124`) **is** used at `learn.ts:69` and `getCoveredFiles` (`:168`) at `learn.ts:58`.
+  **REPO_OVERVIEW §7 staleness re-confirmed** (per the always-load "flag stale overview" rule): it lists
+  `parseTestNames` as dead — it is **not**; only `extractFunctionMappings` is (folds into #9 dead-code scope +
+  a 1-line #12 overview fix).
+- **Dedup scan (live issue bodies, not just titles):** grepped all 10 open issue bodies for
+  `working.?tree|uncommitted|--cached|prune|stats|getChangedFiles` → only a single `getChangedFiles` mention
+  inside **#7** (about the `simple-git` upgrade unit test, unrelated to the gap). The two queued candidates
+  (**working-tree gap**, **prune/stats**) remain genuinely-new, non-duplicate, and already have full
+  ready-to-file ISSUE-FORMAT specs above.
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still only on `origin/cursor/setup-dev-environment-894a`** (`2f4cd23`;
+  `git ls-tree origin/main REPO_OVERVIEW.md AGENTS.md` = **empty**), **NOT on `main`, no PR** → unchanged status
+  for **#12** (merge/PR the two files to `main` + fix the stale README "Project Structure"). Per `AGENTS.md` the
+  setup VM has native PG 16 on 5433/no Docker; this Ticket-Manager cron VM has **no PostgreSQL, no Docker, and
+  `node_modules` absent**, so a DB-backed E2E repro of #4/#14 is **not runnable here** — the registry-only audit
+  is the cheap verification available.
+- **Refreshed advisory audit (registry reachable → cheap; `npm audit --package-lock-only --omit=dev`):**
+  **7 production vulns (1 critical, 3 high, 3 moderate)** — identical headline to runs 6/8–15
+  (`simple-git@^3.20.0` critical RCE + `@actions/github@^6.0.1` → `@actions/http-client` → `undici`). **#7
+  already covers** the fix + CI audit gate → no new ticket.
+- **`gh` is READ-ONLY this environment (runs 10–16) — re-verified live:** `gh api user` → **403 "Resource not
+  accessible by integration"**; repo permissions = `{admin:false, maintain:false, pull:false, push:false,
+  triage:false}`. No sanctioned issue-write tool exists (no MCP; `OpenGitPr`/`EditPullRequestLabels` are PR-only;
+  system prompt forbids `gh` writes). Prior runs additionally proved the integration token is **create-only** then
+  fully comment/label-blocked (REST + GraphQL 403). Net: **the bot cannot create issues or dispatch the `@cursor`
+  engineering agent** — that still needs a maintainer or a comment-scoped token.
+- **Decision — filed 0 NEW issues.** Two sufficient reasons: (a) the bot physically cannot create issues here
+  (read-only token), and (b) even with a write path the backlog is **healthy at 11 open** and covers **every**
+  audit dimension (correctness #4/#14, E2E #5, security #7, CI/release #8, lint/code-quality #9, DB hygiene #10,
+  SQLite #11, docs #12, Action outputs #13); product code is **unchanged since run 3**; and the only genuinely-new
+  candidates (working-tree gap, prune/stats) **already have full ready-to-file ISSUE-FORMAT specs above** (→ 12/15
+  then 13/15 the instant a write path exists). Every other candidate is low-leverage or adjacent (dependency
+  currency — don't churn; `learn.ts:62-73` fragile JSON parse — folds into #14; `jest-runner.ts:49` unquoted
+  `execSync` — theoretical/internal; `select.ts:140-146` file-level broadening — folds into #4/#14/#5; dead
+  `extractFunctionMappings` — folds into #9). Honors *"≤2/run, quality over volume, skip if healthy"* **and** the
+  user's explicit *"≤15 max; don't create more if already open."*
+- **Bottleneck unchanged after 16 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. The single highest-leverage action remains a **maintainer (or a
+  comment-scoped token)** commenting `@cursor please implement this issue.` on **#4 first**, then **#14 → #5**,
+  then **#7 → #8**, then **#9/#10**, then **#11** [after #10] / **#12** (now just needs the setup-branch files
+  merged) / the queued working-tree + prune/stats tickets, then **#13** [after #4/#8] — and applying the intended
+  labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–15.
