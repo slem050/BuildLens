@@ -128,7 +128,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–16 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–17 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -1112,3 +1112,67 @@ Open a PR that passes CI.
   labels listed atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–15.
+
+### 2026-07-13 (run 17 — 20:00 UTC cron)
+- **Note the ~17-day gap:** the previous logged run was **2026-06-26 (run 16)**; no runs are recorded for
+  2026-06-27 … 2026-07-12 (the daily `0 20 * * *` cron appears to have been paused/disabled in that window).
+  `origin/main` HEAD is still **`c881fc3`** (run 16), confirming **no Ticket-Manager or product activity** in
+  the interim. Branch `cursor/buildlens-issue-backlog-568f` == `origin/main` at `c881fc3` (0 ahead / 0 behind
+  at start).
+- **Synced context (read this log + automation memory + always-load step first):** read `REPO_OVERVIEW.md` +
+  `AGENTS.md` from `origin/cursor/setup-dev-environment-894a` (still the only place they exist), re-read
+  `README.md`, and re-grounded the live code directly (grep + reads, not log-trust). Reviewed all open/closed
+  issues, all PRs, and the last 15 commits. **No PRs exist, ever** (`gh pr list --state all` empty). The last
+  14 commits are doc-only ticket-manager logs (`c881fc3` run 16 … `ccf3f48` run 2); **last product-code commit
+  is still `2e0d7bc`** (`git diff --stat 2e0d7bc HEAD -- src package.json action.yml jest.config.js .github
+  tsconfig.json` = **empty**) → no `src/`/config change since run 3, so **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14 all
+  remain valid as written**.
+- **Issue state unchanged:** OPEN = **11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14); CLOSED =
+  #1, #2, #3. No issues opened/closed by anyone in the gap. No dup risk for the two queued candidates (dedup
+  keywords re-checked; only the unrelated `getChangedFiles` mention inside #7's `simple-git` test, as in run 16).
+- **Re-grounded key anchors in live code (exact lines):** **#14** `learn.ts:113` `testBaseName` computed but
+  never used (dead); `learn.ts:151` `createLink(testRecord.id, func.id)` inside the per-test × per-covered-fn
+  loops → full bipartite. **#4 / file-broadening** `select.ts` `getFunctionsByFilePaths` + `getTestsForFunctions`.
+  **working-tree gap** `diff-analyzer.ts` `getCurrentRef` (**re-read `:101-119`**): returns `GITHUB_SHA` (`:102-103`),
+  else branch `--abbrev-ref HEAD` (`:107-110`), else `HEAD` (`:115`) — **all committed refs; no `--cached`/worktree
+  path** (empty catch `:111-112` folds into #9). **prune/stats gap** `cli.ts` registers only `learn` (`:37`) /
+  `select` (`:68`) / `init` (`:101`). **Dead code** `coverage/parser.ts:57 extractFunctionMappings` has **no
+  callers** in `src/` (grep = definition only) → truly dead, while `parseTestNames` (`:124`) **is** used at
+  `learn.ts:69` and `getCoveredFiles` (`:168`) at `learn.ts:58`.
+- **REPO_OVERVIEW §7 staleness re-confirmed** (per the always-load "flag stale overview" rule): §7 (lines 103–104)
+  lists `coverage/parser.ts#parseTestNames` as dead — it is **not** (used at `learn.ts:69`); only
+  `extractFunctionMappings` is truly dead. Folds into #9's dead-code scope + a 1-line #12 overview fix. NB: §7
+  **already lists both queued candidates** as P1 limitations ("`select` ignores the working tree (committed diff
+  only)" and "no `prune`/`stats` command or stale-data cleanup") — reinforcing they are legit-but-unfiled, not
+  invented.
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still only on `origin/cursor/setup-dev-environment-894a`**
+  (`git ls-tree origin/main REPO_OVERVIEW.md AGENTS.md` = **empty**; setup branch has both), **NOT on `main`, no
+  PR** → unchanged status for **#12** (merge/PR the two files to `main` + fix the stale README "Project Structure").
+  Per `AGENTS.md` the setup VM has native PG 16 on 5433/no Docker; this Ticket-Manager cron VM has **no PostgreSQL,
+  no Docker, and `node_modules` absent**, so a DB-backed E2E repro of #4/#14 is **not runnable here** — the
+  registry-only audit is the cheap verification available.
+- **Refreshed advisory audit (registry reachable → cheap; `npm audit --package-lock-only --omit=dev`):**
+  **7 production vulns (1 critical, 3 high, 3 moderate)** — identical headline to runs 6/8–16 (`simple-git@^3.20.0`
+  critical RCE + `@actions/github@^6.0.1` → `@actions/http-client` → `undici`); no *new* prod advisory surfaced in
+  the 17-day gap. **#7 already covers** the fix + CI audit gate → no new ticket.
+- **`gh` is READ-ONLY this environment (runs 10–17) — re-verified live:** `gh api user` → **403 "Resource not
+  accessible by integration"**; repo permissions = `{admin:false, maintain:false, pull:false, push:false,
+  triage:false}`. No sanctioned issue-write tool exists (MCP servers = `open_git_pr` + `automation_memory` only,
+  both PR/memory-scoped; system prompt forbids `gh` writes). Net: **the bot cannot create issues or dispatch the
+  `@cursor` engineering agent** — that still needs a maintainer or a comment-scoped token. Did **not** attempt any
+  issue write.
+- **Decision — filed 0 NEW issues.** Two sufficient reasons: (a) the bot physically cannot create issues here
+  (read-only token), and (b) even with a write path the backlog is **healthy at 11 open** and covers **every** audit
+  dimension (correctness #4/#14, E2E #5, security #7, CI/release #8, lint/code-quality #9, DB hygiene #10, SQLite
+  #11, docs #12, Action outputs #13); product code is **unchanged since run 3**; and the only genuinely-new
+  candidates (working-tree gap, prune/stats) **already have full ready-to-file ISSUE-FORMAT specs above** (→ 12/15
+  then 13/15 the instant a write path exists). Inventing a third ticket would be busywork. Honors *"≤2/run, quality
+  over volume, skip if healthy"* **and** the user's explicit *"≤15 max; don't create more if already open."*
+- **Bottleneck unchanged after 17 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. The single highest-leverage action remains a **maintainer (or a
+  comment-scoped token)** commenting `@cursor please implement this issue.` on **#4 first**, then **#14 → #5**, then
+  **#7 → #8**, then **#9/#10**, then **#11** [after #10] / **#12** (now just needs the setup-branch files merged) /
+  the queued working-tree + prune/stats tickets, then **#13** [after #4/#8] — and applying the intended labels listed
+  atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–16.
