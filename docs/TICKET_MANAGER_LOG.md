@@ -113,7 +113,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 16
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 18
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -128,7 +128,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–17 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–18 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -1176,3 +1176,71 @@ Open a PR that passes CI.
   atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–16.
+
+### 2026-07-14 (run 18 — 20:02 UTC cron)
+- **Cron resumed normal daily cadence:** previous run 17 was 2026-07-13; this run is 2026-07-14 (1-day
+  gap, vs the 17-day pause before run 17). `origin/main` HEAD started at **`ae7e302`** (run 17). Branch
+  `cursor/buildlens-issue-backlog-8ae9` == `origin/main` at `ae7e302` (**0 ahead / 0 behind** at start,
+  verified `git rev-list --left-right --count`).
+- **Synced context (read this log + automation memory + always-load step first):** read `REPO_OVERVIEW.md`
+  + `AGENTS.md` from `origin/cursor/setup-dev-environment-894a` (still the only place they exist), re-read
+  `README.md`, and re-grounded the live code directly (reads + `rg`, not log-trust). Reviewed all open/closed
+  issues, all PRs, and the last 15 commits. **No PRs exist, ever** (`gh pr list --state all` empty). The last
+  15 commits are doc-only ticket-manager logs (`ae7e302` run 17 … `f93eb0e` run 3); **last product-code commit
+  is still `2e0d7bc`** (`git diff --stat 2e0d7bc HEAD -- src package.json action.yml jest.config.js tsconfig.json
+  .github` = **empty**) → no `src/`/config change since run 3, so **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14 all remain
+  valid as written**.
+- **Issue state unchanged:** OPEN = **11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14); CLOSED =
+  #1, #2, #3. No issues opened/closed by anyone since run 17. Dedup keywords re-checked; the two queued candidates
+  (working-tree gap, prune/stats) remain non-duplicate.
+- **Re-grounded key anchors in live code (exact lines, this run):** **working-tree gap** —
+  `DiffAnalyzer.getChangedFiles` (`diff-analyzer.ts:32-63`) diffs `[baseRef, currentRef]`, and `getCurrentRef`
+  (**re-read `:101-119`**) resolves `currentRef` to `GITHUB_SHA` (`:102-103`) → branch `--abbrev-ref HEAD`
+  (`:107-110`) → `HEAD` (`:115`) — **all committed refs; no `git diff`/`--cached`/worktree path** (empty catches
+  `:111-112`, `:131-132`, `:139-140`, `:149-150` also fold into #9). **prune/stats gap** — `cli.ts` registers only
+  `learn` (`:37`) / `select` (`:68`) / `init` (`:101`). **Dead code** `coverage/parser.ts:57 extractFunctionMappings`
+  = definition only, **no callers** in `src/` (`rg` confirmed) → truly dead, while `parseTestNames` (`parser.ts:124`)
+  **is** used at `learn.ts:69`, `parseTestNamesFromJson` (`jest-runner.ts:103`) at `learn.ts:67`, and `getCoveredFiles`
+  (`parser.ts:168`) at `learn.ts:58`.
+- **REPO_OVERVIEW §7 staleness re-confirmed** (per the always-load "flag stale overview" rule): §7 lists
+  `coverage/parser.ts#parseTestNames` as dead — it is **not** (used at `learn.ts:69`); only `extractFunctionMappings`
+  is truly dead. Folds into #9's dead-code scope + a 1-line #12 overview fix. §7 **already lists both queued
+  candidates** as P1 limitations ("`select` ignores the working tree (committed diff only)" and "no `prune`/`stats`
+  command or stale-data cleanup") — reinforcing they are legit-but-unfiled, not invented.
+- **`REPO_OVERVIEW.md` + `AGENTS.md` still only on `origin/cursor/setup-dev-environment-894a`**
+  (`git ls-tree origin/main REPO_OVERVIEW.md AGENTS.md` = **empty**; setup branch has both), **NOT on `main`, no
+  PR** → unchanged status for **#12** (merge/PR the two files to `main` + fix the stale README "Project Structure").
+  Per `AGENTS.md` the setup VM has native PG 16 on 5433/no Docker; this Ticket-Manager cron VM has **no PostgreSQL,
+  no Docker, and `node_modules` absent**, so a DB-backed E2E repro of #4/#14 is **not runnable here** — the
+  registry-only audit is the cheap verification available.
+- **Refreshed advisory audit (registry reachable → cheap; `npm audit --package-lock-only --omit=dev`):**
+  **7 production vulns (1 critical, 3 high, 3 moderate)** — identical headline to runs 6/8–17. Per-package severity
+  re-confirmed via `--json`: `simple-git` **critical** (RCE), `undici`/`minimatch`/`picomatch` **high**,
+  `@actions/github`/`@actions/http-client`/`brace-expansion` **moderate**. The two undici moderates now carry newer
+  GHSA IDs (`GHSA-35p6-xmwp-9g52` HTTP response queue poisoning, `GHSA-g8m3-5g58-fq7m` Set-Cookie SameSite downgrade)
+  but the crit/high headline and the vulnerable **direct** deps (`simple-git@^3.20.0`, `@actions/github@^6.0.1`) are
+  unchanged. **#7 already covers** the fix (bump both direct deps + `npm audit fix` for transitives + CI audit gate)
+  → no new ticket.
+- **`gh` is READ-ONLY this environment (runs 10–18) — re-verified live:** `gh api user` → **403 "Resource not
+  accessible by integration"**; repo permissions = `{admin:false, maintain:false, pull:false, push:false,
+  triage:false}`. **`GetMcpTools` re-checked this run:** only servers are `Cursor Automation Tools`
+  (`open_git_pr` + `automation_memory`, both PR/memory-scoped) and `cursor-cloud` (read-only diagnostics) — **no
+  issue-creation tool**; the system prompt also forbids `gh` writes. Net: **the bot cannot create issues or dispatch
+  the `@cursor` engineering agent** — that still needs a maintainer or a comment-scoped token. Did **not** attempt
+  any issue write.
+- **Decision — filed 0 NEW issues.** Two sufficient reasons: (a) the bot physically cannot create issues here
+  (read-only token, no sanctioned write tool), and (b) even with a write path the backlog is **healthy at 11 open**
+  and covers **every** audit dimension (correctness #4/#14, E2E #5, security #7, CI/release #8, lint/code-quality #9,
+  DB hygiene #10, SQLite #11, docs #12, Action outputs #13); product code is **unchanged since run 3**; and the only
+  genuinely-new candidates (working-tree gap, prune/stats) **already have full ready-to-file ISSUE-FORMAT specs
+  above** (→ 12/15 then 13/15 the instant a write path exists). Inventing a third ticket would be busywork. Honors
+  *"≤2/run, quality over volume, skip if healthy"* **and** the user's explicit *"≤15 max; don't create more if
+  already open."*
+- **Bottleneck unchanged after 18 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. The single highest-leverage action remains a **maintainer (or a
+  comment-scoped token)** commenting `@cursor please implement this issue.` on **#4 first**, then **#14 → #5**, then
+  **#7 → #8**, then **#9/#10**, then **#11** [after #10] / **#12** (now just needs the setup-branch files merged) /
+  the queued working-tree + prune/stats tickets, then **#13** [after #4/#8] — and applying the intended labels listed
+  atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–17.
