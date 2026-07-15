@@ -113,7 +113,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 18
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 19
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -128,7 +128,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–18 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–19 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -157,6 +157,14 @@ blocks a feature; don't churn for fashion.
   inspect mapping coverage (only `CLEAR_TEST_LINKS`/`CLEAR_ALL_LINKS` exist, `queries.ts:99-103`). Listed
   **P1** in `REPO_OVERVIEW.md §7`. Lower-leverage than the working-tree gap (maintenance/observability, not a
   correctness break) — second in the queue. **Ready-to-file spec below ("Ready-to-file ticket (run 14)").**
+- **P2/chore-test (NEW run 19) — leaked test-DB connection pool in global Jest setup (`setup.ts`).** The
+  `beforeAll` in `src/__tests__/setup.ts:4-6` opens a `pg.Pool` (via `new TestDatabase()` → eager `new Pool()` at
+  `postgres-database.ts:12/14`) that is **never closed** — `afterAll` (`:14-16`) tears down a *different*
+  `TestDatabase` instance. The leaked pool is the root cause of the "A worker process has failed to exit
+  gracefully" warning `AGENTS.md` documents as a tolerated "teardown quirk". This is the brief's explicit **flaky
+  teardown** hygiene dimension and is **non-duplicate** (only #5 has a passing "no flaky teardown" AC mention;
+  #9 covers empty catches, not this leak). Third in the queue (would be 14/15). **Ready-to-file spec below
+  ("Ready-to-file ticket (run 19)").**
 - **P3/chore (NEW run 13, folds into #9) — dead code `extractFunctionMappings`** (`coverage/parser.ts:57`)
   is never called anywhere in `src/` (verified by grep). #9's "no dead code" scope should remove it. (Note:
   `parseTestNames`/`getCoveredFiles` ARE used — `learn.ts:69,58` — so only `extractFunctionMappings` is dead.)
@@ -193,7 +201,9 @@ blocks a feature; don't churn for fashion.
 `action.ts`, `tests-selected`, `tests-run`, `setOutput`, `base-ref`, `action output`,
 `cross-product`, `over-link`, `createLink`, `per-test`, `attribution`, `bipartite`,
 `working tree`, `working-tree`, `uncommitted`, `unstaged`, `staged`, `--cached`, `getChangedFiles`,
-`prune`, `stats`, `cleanup`, `cli command`, `dead code`, `extractFunctionMappings`.
+`prune`, `stats`, `cleanup`, `cli command`, `dead code`, `extractFunctionMappings`,
+`teardown`, `flaky teardown`, `open handle`, `detectOpenHandles`, `forceExit`, `worker`, `exit gracefully`,
+`pool`, `leak`, `setup.ts`, `beforeAll`, `afterAll`.
 
 ## Ready-to-use `@cursor` handoffs (paste as a comment to kick off the agent)
 Because the bot can't comment, the maintainer can trigger the engineering agent by commenting on
@@ -380,6 +390,83 @@ and follow the Validation plan (Node 20 × PostgreSQL 15 on port 5433; `npm run 
 prune cascade/commit-filter + stats-count integration tests via `withTestDb`). Keep SQL parameterized/centralized,
 route output through `Logger`, use explicit return types, and keep tests proportional (no redundant tests/code).
 Open a PR that passes CI.
+
+## Ready-to-file ticket (run 19) — NOT yet filed (bot can't create issues; gh read-only)
+> **NEW candidate found run 19 (2026-07-15)** — first net-new grounded candidate since run 13. It is the
+> **"flaky teardown" hygiene** dimension the Ticket-Manager brief calls out explicitly, and it explains a
+> symptom the repo already documents in `AGENTS.md`. **Third** unfiled candidate (P2), after the two P1s
+> above (working-tree, prune/stats). File when a write path exists; would be 14/15 (under cap). Intended
+> labels: **P2, chore, good first issue**.
+
+**Title:** Fix leaked test-DB connection pool in global Jest setup (Jest "worker failed to exit gracefully")
+
+**Problem:** The global Jest setup opens a PostgreSQL connection pool it never closes, so every test file
+leaves an open `pg.Pool` (with its idle-connection reaper timer + TCP sockets) alive after the suite finishes.
+This is the root cause of the "A worker process has failed to exit gracefully" warning that `AGENTS.md`
+documents as a "pre-existing teardown quirk" and dismisses as harmless. It is not harmless: leaked handles mask
+*real* open-handle regressions, can hang CI (or force a `--forceExit` band-aid), and make the suite's teardown
+non-deterministic — the exact "flaky teardown" the E2E ticket (#5) lists as a non-goal (`no flaky teardown`).
+
+**Evidence (grounded in live code):**
+- `src/__tests__/setup.ts:4-6` — `beforeAll` does `const testDb = new TestDatabase(); await testDb.setup();`.
+  `new TestDatabase()` (`test-db.ts:9-13`) constructs `new Database(dbConfig)` → `DatabaseFactory.create`
+  (`database.ts:7-15`) → `new PostgresDatabase(config)`, whose constructor **eagerly** opens `new Pool(...)`
+  (`postgres-database.ts:12` / `:14`). `setup()` (`test-db.ts:31-42`) then runs `initializeSchema()` queries on
+  that pool. The `testDb` reference is **local to the `beforeAll` callback and is never `close()`-ed** → the
+  pool leaks for the lifetime of the worker.
+- `src/__tests__/setup.ts:14-16` — `afterAll` constructs a **brand-new, different** `TestDatabase` and calls
+  `teardown()`; `teardown` (`test-db.ts:96-105`) → `db.close()` → `pool.end()` (`postgres-database.ts:101-103`)
+  ends **only the afterAll pool**, never the one opened in `beforeAll`. (Because `setupFilesAfterEnv` runs per
+  test file, this leaks ~one pool per test file.)
+- `jest.config.js` has no `detectOpenHandles`/`forceExit`, and `AGENTS.md` (`### Running tests`) explicitly says
+  Jest "may log 'A worker process has failed to exit gracefully' — this is a pre-existing teardown quirk … all
+  suites still pass" — i.e., the symptom is known and currently tolerated.
+- Related (do not expand scope): `test-db.ts:92-93`, `:98-100`, `:101-104` swallow teardown errors in empty
+  `catch` blocks (that de-swallowing belongs to **#9**); this ticket is specifically the *leaked pool*, not the
+  empty-catch cleanup.
+
+**Proposed approach (minimal, low-risk):**
+- In `src/__tests__/setup.ts`, hoist a single module-scoped `let testDb: TestDatabase | undefined`; assign it in
+  `beforeAll` and tear down the **same** instance in `afterAll` (so the pool that is opened is the pool that is
+  closed). Alternatively drop the global setup's DB work entirely — per-test isolation already goes through
+  `withTestDb` (`test-db.ts:116-127`), which opens and `teardown()`s its own pool in a `finally`, so the global
+  `beforeAll` only needs a one-shot schema check that closes its pool immediately.
+- Do **not** paper over the leak with `--forceExit`; the fix must let the process exit cleanly on its own.
+
+**Standards & patterns:** test infra mirrors the DB house rules — DB access via `DatabaseAdapter`/`Repository`
+(exemplars `src/db/{interface,database}.ts`), pools owned and closed by whoever opens them (exemplar
+`withTestDb` in `src/__tests__/utils/test-db.ts:116-127`, which pairs `setup()`/`teardown()` in try/finally).
+No new production code; test-only change.
+
+**Validation plan:** Requires PostgreSQL, so validate in the setup-dev VM / CI (per `AGENTS.md`: native PG 16 on
+port **5433**, `sudo pg_ctlcluster 16 main start`), **not** the DB-less Ticket-Manager VM. Node 20 × `postgres:15`
+CI lane: `npm run build && npm run test:ci`, and crucially `TEST_DB_PORT=5433 npx jest --detectOpenHandles` —
+assert (a) no "A worker process has failed to exit gracefully" line and (b) no `TCPWRAP`/`Timeout` open handles
+attributed to `pg`/`Pool` after the run. CI cell: the Node 20 × PG 15 lane in `.github/workflows/ci.yml` (and any
+matrix added by #8); a green `--detectOpenHandles` run is the regression guard.
+
+**Acceptance criteria:**
+- [ ] The pool opened in the global `beforeAll` is closed (same instance torn down, or global DB setup removed in
+      favor of `withTestDb`).
+- [ ] `TEST_DB_PORT=5433 npx jest --detectOpenHandles` reports **no** open handles from `pg` and **no** "worker
+      failed to exit gracefully" warning.
+- [ ] No `--forceExit` is added to mask the symptom.
+- [ ] Existing suites still pass unchanged (Node 20 × PG 15).
+
+**Risk/dependencies:** independent of #4/#14; adjacent to #9 (empty catches) and #8 (CI matrix) but distinct. Risk
+is low (test-only). Only caveat: if any suite implicitly relied on the global `beforeAll` pool staying open, it
+must instead use `withTestDb`/its own instance — verify by running the full suite.
+
+**Effort (technical):** ~one file (`src/__tests__/setup.ts`), a few lines; optional 1-line `jest.config.js`
+guard. Test-only, additive-to-CI. Low invasiveness, low risk.
+
+**@cursor handoff (paste as the issue's first comment to dispatch the engineer):**
+`@cursor please implement this issue.` First read `REPO_OVERVIEW.md` and `AGENTS.md` (currently on branch
+`cursor/setup-dev-environment-894a`) for context and house standards. Fix the leaked pool in
+`src/__tests__/setup.ts` per the Proposed approach, satisfy the Acceptance criteria, and follow the Validation
+plan (Node 20 × PostgreSQL on port 5433; `npm run build && npm run test:ci`; prove it with `npx jest
+--detectOpenHandles` showing no `pg` open handles and no "failed to exit gracefully"). Do not add `--forceExit`.
+Keep the change test-only and proportional (no redundant tests/code). Open a PR that passes CI.
 
 ## Run log
 ### 2026-06-13
@@ -1244,3 +1331,68 @@ Open a PR that passes CI.
   atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–17.
+
+### 2026-07-15 (run 19 — 20:00 UTC cron)
+- **Cron on daily cadence:** previous run 18 was 2026-07-14; this run is 2026-07-15 (1-day gap). `origin/main`
+  HEAD started at **`f736e69`** (run 18). Branch this run: **`cursor/buildlens-issue-backlog-dc51`**, created
+  **== `origin/main`** at `f736e69` (0 ahead / 0 behind at start).
+- **Synced context (read this log + automation memory + always-load step first):** re-read `REPO_OVERVIEW.md`
+  + `AGENTS.md` from `origin/cursor/setup-dev-environment-894a` (still the only place they exist), re-read
+  `README.md`, and re-grounded the live code directly (reads + `rg`, not log-trust). Reviewed all open/closed
+  issues, all PRs, and the last 15 commits. **No PRs exist, ever** (`gh pr list --state all` empty). The last
+  15 commits are doc-only ticket-manager logs; **last product-code commit is still `2e0d7bc`**
+  (`git diff --stat 2e0d7bc HEAD -- src package.json action.yml jest.config.js tsconfig.json .github
+  docker-compose*.yml` = **empty**) → no `src/`/config change since run 3, so **#4/#5/#7/#8/#9/#10/#11/#12/#13/#14
+  all remain valid as written**.
+- **Issue state unchanged:** OPEN = **11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14); CLOSED =
+  #1, #2, #3. No issues opened/closed by anyone since run 18.
+- **🆕 Found a genuinely new, grounded candidate (first net-new since run 13): leaked test-DB connection pool in
+  the global Jest setup.** `src/__tests__/setup.ts:4-6` (`beforeAll`) opens a `pg.Pool` — `new TestDatabase()`
+  (`test-db.ts:9-13`) → `new Database()` → `DatabaseFactory.create` (`database.ts:7-15`) → `PostgresDatabase`
+  whose ctor **eagerly** does `new Pool()` (`postgres-database.ts:12/14`) — and **never closes it**; `afterAll`
+  (`:14-16`) tears down a **different** `TestDatabase`, so `pool.end()` (`postgres-database.ts:101-103`) only
+  closes the afterAll pool. Net: ~one leaked pool per test file → open `TCPWRAP`/`Timeout` handles → the "A worker
+  process has failed to exit gracefully" warning that `AGENTS.md` (`### Running tests`) documents as a tolerated
+  "teardown quirk". This is exactly the brief's **"flaky teardown"** hygiene dimension. **Dedup:** searched all
+  open issue bodies (`teardown|open.?handle|worker|forceexit|detectopenhandles|gracefully|leak|pool|connection|
+  \.close|afterall|beforeall`) — only **#5** has a *passing* "no flaky teardown" acceptance line; **#9** covers
+  empty `catch` blocks, not this leak → **non-duplicate**. **Wrote a full ISSUE-FORMAT ready-to-file spec**
+  ("Ready-to-file ticket (run 19)") and added it to the unfiled queue as the **#3 candidate (P2, chore/test, good
+  first issue)** behind the two P1s (working-tree, prune/stats). Would be 14/15 if filed.
+- **Re-grounded the other anchors in live code (exact lines, this run):** **core bug #4** — `select.ts:126-138`
+  exact-match `getFunction`, `:140-146` file-level broadening via `getFunctionsByFilePaths`, fallback `:159-171`;
+  **core bug #14** — `learn.ts:112` outer loop per test *file*, dead `testBaseName` (`:113`), inner loop over
+  **all** merged-coverage files (`:115`), `createLink` per test×fn (`:151`) = full cross-product; **working-tree
+  gap** — `diff-analyzer.ts:32-63` + `getCurrentRef :101-118` all committed refs, no `git diff`/`--cached`;
+  **prune/stats gap** — `cli.ts` only `learn`/`select`/`init` (`.command(...)` at `:36`/`:67`/`:100`); **dead
+  code** `coverage/parser.ts:57 extractFunctionMappings` = def-only, no callers (`rg`), while `parseTestNames`
+  (`:124`) is used at `learn.ts:69`, `parseTestNamesFromJson` (`jest-runner.ts:103`) at `learn.ts:67`, and
+  `getCoveredFiles` (`:168`) at `learn.ts:58`.
+- **REPO_OVERVIEW §7 staleness re-confirmed:** still lists `parseTestNames` as dead (it is used at `learn.ts:69`);
+  only `extractFunctionMappings` is truly dead. Folds into #9 + a 1-line #12 overview fix. §7 already lists the two
+  P1 queued candidates (working-tree, prune/stats) as limitations. `REPO_OVERVIEW.md`/`AGENTS.md` **still only on
+  `origin/cursor/setup-dev-environment-894a`, not on `main`, no PR** → unchanged status for **#12**.
+- **Refreshed advisory audit (registry reachable → cheap; `npm audit --package-lock-only --omit=dev`):**
+  **7 production vulns (1 critical, 3 high, 3 moderate)** — identical headline to runs 6/8–18. `simple-git`
+  critical RCE + `@actions/github`→`@actions/http-client`→`undici` high (undici moderates carry GHSA
+  `-35p6-xmwp-9g52` / `-g8m3-5g58-fq7m`); vulnerable **direct** deps unchanged (`simple-git@^3.20.0`,
+  `@actions/github@^6.0.1`). **#7 already covers** the fix + CI gate → no new ticket.
+- **`gh` is READ-ONLY (runs 10–19) — re-verified live:** `gh api user` → **403 "Resource not accessible by
+  integration"**; repo permissions = `{admin:false, maintain:false, pull:false, push:false, triage:false}`.
+  **`GetMcpTools` re-checked:** only `Cursor Automation Tools` (`open_git_pr` + `automation_memory`, both
+  PR/memory-scoped) and `cursor-cloud` (read-only diagnostics) — **no issue-creation tool**; system prompt also
+  forbids `gh` writes. Net: the bot cannot create issues or post the `@cursor` handoff comment. Did **not** attempt
+  any issue write.
+- **Decision — filed 0 NEW issues** (as in runs 8–18). Reasons: (a) the bot physically cannot create issues here
+  (read-only token, no sanctioned write tool); (b) even with a write path the backlog is **healthy at 11 open** and
+  covers every audit dimension. **Forward progress this run:** identified + fully spec'd the first net-new grounded
+  candidate since run 13 (the `setup.ts` pool leak) — now instantly fileable, joining the two P1 ready-to-file
+  specs. Honors *"≤2/run, quality over volume, skip if healthy"* and the user's explicit *"≤15 max; don't create
+  more if already open."*
+- **Bottleneck unchanged after 19 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. Highest-leverage action remains a **maintainer (or comment-scoped
+  token)** commenting `@cursor please implement this issue.` on **#4 first**, then #14 → #5, #7 → #8, #9/#10, #11
+  [after #10] / #12, then the queued working-tree + prune/stats + `setup.ts`-pool-leak tickets, then #13 — plus
+  applying the intended labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–18. Three fully-spec'd ready-to-file candidates now queued (2× P1, 1× P2).
