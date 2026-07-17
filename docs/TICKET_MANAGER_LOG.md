@@ -113,7 +113,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 20
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 21
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -1451,3 +1451,60 @@ Keep the change test-only and proportional (no redundant tests/code). Open a PR 
   oldest verbose "filed 0 / unchanged" entries (runs 8–18) into a compact table if growth becomes a problem.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–19. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
+
+### 2026-07-17 (run 21 — 20:02 UTC cron)
+- **Cron on daily cadence** (prev run 20 = 2026-07-16, 1-day gap). `origin/main` HEAD started at **`65a52b3`**
+  (run 20 log). Branch this run: **`cursor/buildlens-issue-backlog-ad94`**, created **== `origin/main`**
+  (0 ahead / 0 behind at start).
+- **Always-load context re-read first:** `REPO_OVERVIEW.md` (113 lines) + `AGENTS.md` (37 lines) from
+  `origin/cursor/setup-dev-environment-894a` — still the **only** place they exist (`git ls-tree origin/main
+  REPO_OVERVIEW.md AGENTS.md` = empty; setup branch has both) — plus this log + automation memory, then
+  `README.md`, the `src/` tree, `package.json`, `.github/workflows/*`, all open/closed issues, all PRs, and the
+  last 15 commits.
+- **State fully unchanged since run 20:** **no PRs exist, ever** (`gh pr list --state all` empty); last
+  product-code commit is still **`2e0d7bc`** (`git diff --stat 2e0d7bc origin/main -- src package.json action.yml
+  jest.config.js tsconfig.json .github` = **empty**). OPEN = **11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11,
+  #12, #13, #14); CLOSED = #1, #2, #3. No issues opened/closed by anyone since run 20. `package.json` unchanged
+  (lint still the `echo` stub at `:20`; deps `simple-git@^3.20.0`, `@actions/github@^6.0.1`, `commander@^11.1.0`,
+  `ts-morph@^21.0.1`; no `engines`).
+- **Re-grounded every anchor in live code (reads + `rg`, not log-trust):** #4 — `select.ts:126-131` exact-match
+  `getFunction` + `:140-146` file-level broadening (`getFunctionsByFilePaths`) + fallback `:159-171` (and catch
+  fallback `:197-204`); #14 — `learn.ts:112` per-test-*file* outer loop, dead `testBaseName` `:113`, inner loop
+  over **all** merged-coverage files `:115`, `createLink` per test×fn `:145-153` (full cross-product); working-tree
+  gap — `diff-analyzer.ts:39` diffs `[baseRef,currentRef]` + `getCurrentRef :101-118` (`GITHUB_SHA`/branch/`HEAD`,
+  all committed; empty catch `:111-112`); prune/stats gap — `cli.ts` registers only `learn`(`:36`)/`select`(`:67`)/
+  `init`(`:100`); dead `extractFunctionMappings` `coverage/parser.ts:57` (no callers via `rg`) vs **used**
+  `parseTestNames`(`:124`, at `learn.ts:69`)/`parseTestNamesFromJson`(`jest-runner.ts:103`, at `learn.ts:67`)/
+  `getCoveredFiles`(`:168`, at `learn.ts:58`); run-19 pool leak — `setup.ts:3-11` `beforeAll` opens a
+  `TestDatabase` whose ctor eagerly does `new Pool` (`postgres-database.ts:12/14`, via `test-db.ts:9-13`) and never
+  closes it, `:13-20` `afterAll` tears down a **different** instance.
+- **REPO_OVERVIEW §7 staleness re-confirmed:** still lists `parseTestNames` as dead though it is used
+  (`learn.ts:69`); only `extractFunctionMappings` is truly dead (folds into #9 + a 1-line #12 overview fix).
+  §7 already lists the working-tree and prune/stats gaps as P1 limitations. `REPO_OVERVIEW.md`/`AGENTS.md` **still
+  only on the setup branch, not on `main`, no PR** → unchanged status for **#12**.
+- **Refreshed advisory audit (registry reachable → cheap; `npm audit --package-lock-only --omit=dev`):**
+  **7 production vulns (1 critical `simple-git` RCE, 3 high `undici`/`minimatch`/`picomatch`, 3 moderate
+  `@actions/github`/`@actions/http-client`/`brace-expansion`)** — identical headline to runs 6/8–20; vulnerable
+  **direct** deps unchanged. **#7 already covers** the fix (bump both direct deps + `npm audit fix` + CI audit
+  gate) → no new ticket.
+- **`gh` is READ-ONLY (runs 10–21) — re-verified live:** `gh api user` → **403 "Resource not accessible by
+  integration"**; repo permissions = `{admin:false, maintain:false, pull:false, push:false, triage:false}`.
+  **`GetMcpTools` re-checked:** only `Cursor Automation Tools` (`open_git_pr` + `automation_memory`, both
+  PR/memory-scoped) and `cursor-cloud` (read-only diagnostics) — **no issue-creation tool**; the system prompt
+  also forbids `gh` writes. Net: the bot cannot create issues or post the `@cursor` handoff comment. Did **not**
+  attempt any issue write.
+- **Decision — filed 0 NEW issues** (as in runs 8–20). Two independent reasons: (a) the bot physically cannot
+  create issues here (read-only token, no sanctioned write tool); (b) even with a write path the backlog is
+  **healthy at 11 open** and covers every audit dimension (correctness #4/#14, E2E #5, security #7, CI/release #8,
+  lint/code-quality #9, DB hygiene #10, SQLite #11, docs #12, Action outputs #13), product code is unchanged since
+  run 3, and the three genuinely-new candidates already have full ready-to-file ISSUE-FORMAT specs above
+  (working-tree P1, prune/stats P1, `setup.ts` pool-leak P2 → 12/13/14 of 15 the instant a write path exists).
+  **No net-new grounded candidate surfaced this run.** Honors *"≤2/run, quality over volume, skip if healthy"* and
+  the user's explicit *"≤15 max; don't create more if already open."*
+- **Bottleneck unchanged after 21 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. The single highest-leverage action remains a **maintainer (or a
+  comment-scoped token)** commenting `@cursor please implement this issue.` on **#4 first**, then #14 → #5, #7 → #8,
+  #9/#10, #11 [after #10] / #12, then the queued working-tree + prune/stats + `setup.ts` pool-leak tickets, then
+  #13 — plus applying the intended labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–20. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
