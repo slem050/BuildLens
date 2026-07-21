@@ -91,12 +91,14 @@ present **correctness** bug (per-test-*file* attribution is the floor; per-*case
 enhancement, README line 252).
 
 ## Verified dependency-security finding (grounds #7; re-run `npm audit --package-lock-only`)
-`npm audit --package-lock-only` = **29 vulns (2 critical, 3 high, 22 moderate, 2 low)** total, and
-`--omit=dev` = **7 production vulns (1 critical, 3 high, 3 moderate)** — **prod re-confirmed live run 16
-(2026-06-26)**, identical headline to runs 6/8–15; was **9 (2 crit, 3 high, 3 mod, 1 low)** at run 3.
-The **critical/high headline is unchanged** (the moderate count rose as more advisories were published
-against the same pinned deps) — **#7 still fully covers it** (the fix bumps the same direct deps + adds
-the CI audit gate). Headline:
+`npm audit --package-lock-only` = **29 vulns (2 critical, 3 high, 22 moderate, 2 low)** total (last full
+run = run 15), and `--omit=dev` = **7 production vulns** — **prod total re-confirmed live run 24
+(2026-07-21)**; was **9 (2 crit, 3 high, 3 mod, 1 low)** at run 3. The prod **severity split shifted at
+run 24** from **1 crit / 3 high / 3 mod** (runs 6/8–23) to **1 crit / 4 high / 2 mod** — `brace-expansion`
+was reclassified **moderate→high** (GHSA: zero-step sequence → process hang / memory exhaustion). The
+**critical/high *direct-dep* headline is unchanged** (`simple-git` critical RCE; `@actions/github`
+moderate→undici) — **#7 still fully covers it** (the fix bumps the same direct deps + adds the CI audit
+gate, and `--audit-level=high` already catches the reclassified `brace-expansion`). Headline:
 - **`simple-git@^3.20.0` (DIRECT, `package.json:46`)** — **critical RCE** (`blockUnsafeOperationsPlugin`
   bypass) + command-execution / RCE (high). Used throughout `src/git/diff-analyzer.ts`
   (`simpleGit()` :29; `diffSummary` :39/:67; `diff` :47/:75; `revparse` :95/:107/:115; `fetch` :148).
@@ -113,7 +115,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 23
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 24
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -128,7 +130,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–23 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–24 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -1620,3 +1622,61 @@ Keep the change test-only and proportional (no redundant tests/code). Open a PR 
   — plus applying the intended labels listed atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–22. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
+
+### 2026-07-21 (run 24 — 20:00 UTC cron)
+- **Cron cadence** (prev run 23 = 2026-07-20; **1-day gap, daily**). `origin/main` HEAD started at
+  **`298fabc`** (run 23 log). Branch this run: **`cursor/buildlens-issue-backlog-29bf`**, created
+  **== `origin/main`** (0 ahead / 0 behind at start).
+- **Always-load context re-read first:** `REPO_OVERVIEW.md` (113 lines) + `AGENTS.md` (37 lines) from
+  `origin/cursor/setup-dev-environment-894a` — still the **only** place they exist (`git ls-tree origin/main
+  REPO_OVERVIEW.md AGENTS.md` = empty) — plus this log + automation memory, then `README.md`, the `src/` tree,
+  `package.json`, `.github/workflows/*`, all open/closed issues, all PRs, and the last 15 commits.
+- **State fully unchanged since run 23:** **no PRs exist, ever** (`gh pr list --state all` empty); last
+  product-code commit is still **`2e0d7bc`** (`git diff --stat 2e0d7bc origin/main -- src package.json action.yml
+  jest.config.js tsconfig.json .github` = **empty**). OPEN = **11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11,
+  #12, #13, #14); CLOSED = #1, #2, #3. No issues opened/closed by anyone since run 23. `package.json` unchanged
+  (lint still the `echo` stub `:20`; no `engines`; `simple-git@^3.20.0`, `@actions/github@^6.0.1`,
+  `commander@^11.1.0`, `ts-morph@^21.0.1`).
+- **Re-grounded core anchors in live code (reads + `rg`, not log-trust):** #4 — `select.ts:125-131` exact-match
+  `getFunction` loop + `:140-146` file-level broadening (`getFunctionsByFilePaths`) + fallback `:159-171`; #14 —
+  `learn.ts:112` per-test-*file* outer loop, dead `testBaseName` `:113`, inner loop over **all** merged-coverage
+  files `:114-115`, `createLink` per test×fn `:144-152` (full cross-product); working-tree gap —
+  `diff-analyzer.ts` `getCurrentRef :101-118` (`GITHUB_SHA`/branch/`HEAD`, all committed; empty catch `:111-112`;
+  no `--cached`/worktree path); prune/stats gap — `cli.ts` registers only `learn`(`:37`)/`select`(`:68`)/
+  `init`(`:101`); dead `extractFunctionMappings` `coverage/parser.ts:57` (no callers via `rg`) vs **used**
+  `getCoveredFiles`(`learn.ts:58`)/`parseTestNames`(`learn.ts:69`)/`parseTestNamesFromJson`(`learn.ts:67`);
+  run-19 pool leak — `__tests__/setup.ts:3-11` `beforeAll` `new TestDatabase().setup()` never closed, `:13-20`
+  `afterAll` tears down a **different** instance.
+- **Advisory audit refreshed** (registry reachable → cheap; `npm audit --package-lock-only --omit=dev --json`):
+  **7 production vulns total (unchanged)**, but the **severity split shifted this run** from **1 crit / 3 high /
+  3 mod** (runs 6/8–23) to **1 crit / 4 high / 2 mod** — `brace-expansion` reclassified **moderate→high** (GHSA:
+  zero-step sequence → process hang / memory exhaustion). Per-pkg: CRIT `simple-git` (direct); HIGH `undici`,
+  `minimatch`, `picomatch`, `brace-expansion`; MOD `@actions/github` (direct) + `@actions/http-client`. The
+  **critical/high *direct-dep* headline is unchanged** and **#7 already covers it** (bump both direct deps +
+  `npm audit fix` + CI `--audit-level=high --omit=dev` gate, which also catches the reclassified `brace-expansion`)
+  → **no new ticket**.
+- **REPO_OVERVIEW §7 staleness re-confirmed:** still lists `parseTestNames` as dead though it is used
+  (`learn.ts:69`); only `extractFunctionMappings` is truly dead (folds into #9 + a 1-line #12 overview fix).
+  §7 already lists the working-tree and prune/stats gaps as P1 limitations. `REPO_OVERVIEW.md`/`AGENTS.md` still
+  only on the setup branch, not on `main`, no PR → unchanged status for **#12**.
+- **`gh` is READ-ONLY (runs 10–24) — re-verified live:** `gh api user` → **403 "Resource not accessible by
+  integration"**; repo permissions = `{admin:false, maintain:false, pull:false, push:false, triage:false}`.
+  **`GetMcpTools` re-checked:** only `Cursor Automation Tools` (`open_git_pr` + `automation_memory`, both
+  PR/memory-scoped) and `cursor-cloud` (read-only diagnostics) — **no issue-creation tool**; the system prompt
+  also forbids `gh` writes. Bot cannot create issues or post the `@cursor` handoff comment. Did **not** attempt any
+  issue write.
+- **Decision — filed 0 NEW issues** (as in runs 8–23). Two independent reasons: (a) issue creation is physically
+  impossible here (read-only token, no sanctioned write tool); (b) even with a write path the backlog is **healthy
+  at 11/15** and covers every audit dimension (correctness #4/#14, E2E #5, security #7, CI/release #8,
+  lint/code-quality #9, DB hygiene #10, SQLite #11, docs #12, Action outputs #13), product code is unchanged since
+  run 3, and **no net-new grounded candidate surfaced this run** (the audit reclassification is covered by #7) —
+  the three genuine candidates already have full ready-to-file ISSUE-FORMAT specs above (working-tree P1,
+  prune/stats P1, `setup.ts` pool-leak P2 → 12/13/14 of 15 the instant a write path exists). Honors *"≤2/run,
+  quality over volume, skip if healthy"* + the user's explicit *"≤15 max; don't create more if already open."*
+- **Bottleneck unchanged after 24 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. The single highest-leverage action remains a **maintainer (or a
+  comment-scoped token)** commenting `@cursor please implement this issue.` on **#4 first**, then #14 → #5, #7 → #8,
+  #9/#10, #11 [after #10] / #12, then the queued working-tree + prune/stats + `setup.ts` pool-leak tickets, then #13
+  — plus applying the intended labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–23. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
