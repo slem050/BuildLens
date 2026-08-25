@@ -116,7 +116,7 @@ Pins behind latest majors: `commander ^11.1.0`→15, `ts-morph ^21.0.1`→28 (`p
 `chalk` pinned to v4 is intentional (v5 is ESM-only; repo is CJS). Track as a future chore only if it
 blocks a feature; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 46
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 47
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -131,7 +131,7 @@ blocks a feature; don't churn for fashion.
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–46 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–47 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -2997,3 +2997,63 @@ Keep the change test-only and proportional (no redundant tests/code). Open a PR 
   plus applying the intended labels listed atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–45. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
+
+### 2026-08-25 (run 47 — 20:00 UTC cron)
+- **Cron cadence:** prev run 46 = 2026-08-24; **1-day gap (daily cadence)**. `origin/main` HEAD started at
+  **`b204988`** (run 46 log). Branch this run: **`cursor/buildlens-issue-backlog-bf65`**, created **== `origin/main`**
+  (`git rev-list --left-right --count origin/main...HEAD` = `0 0`).
+- **User re-affirmed both standing instructions** (verbatim in the query): (a) **≤ 15 tickets maximum — don't create
+  more if we already have open**; (b) keep the **progress/task flow in a docs `.md`, push to `main` every run, read at
+  start**. Both honored via this file — read first (head/digest + tail), updated here, pushed to `main`.
+- **Always-load context re-read first:** `REPO_OVERVIEW.md` (120 lines) + `AGENTS.md` (37 lines) from
+  `origin/cursor/setup-dev-environment-894a` — still the **only** place they exist (`git ls-tree origin/main
+  REPO_OVERVIEW.md AGENTS.md` = empty) — plus this log + memory, then `README.md` (Future Enhancements §250, SQLite
+  §259), `src/` tree, `package.json`, `.github/workflows/*`, all open/closed issues, all PRs, last 15 commits.
+- **State fully unchanged since run 46:** **no PRs exist, ever** (`gh pr list --state all` = `[]`); last product-code
+  commit still **`2e0d7bc`** (`git diff --stat 2e0d7bc origin/main -- src package.json package-lock.json action.yml
+  jest.config.js tsconfig.json .github scripts docker-compose*.yml` = **empty**; the commits above it on `main` are all
+  `docs(ticket-manager)` run logs). OPEN = **11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14); CLOSED =
+  #1, #2, #3. All 11 open still **0 comments / 0 labels** (`gh issue list --state open --json number,labels,comments`)
+  → no maintainer activity, no `@cursor` dispatch since creation. `package.json` `lint` still the `echo` stub (#9);
+  `engines` still **undefined** + no `.nvmrc`/eslint/prettier/editorconfig (#8/#9).
+- **Re-grounded core anchors live** (full reads of `select.ts`/`learn.ts` + `grep` over `src/`): #4 — `select.ts:29`
+  `execute()` → `Promise<void>` (grounds #13), `:126-131` exact-match `getFunction(...)`, `:140-146`
+  `getFunctionsByFilePaths` file-level broadening, all-test fallback `:44-45/164-165/201-202` (`fallbackToAll` guard
+  `:162`, `runAllTests` `:208`); #14 — `learn.ts:112` per-test-file outer loop, `:113` dead `testBaseName`, `:115` inner
+  loop over ALL src files in merged coverage (`Object.entries(coverageData)`), `:145` per-test loop, `:151` `createLink`
+  per test × per covered fn (bipartite cross-product); working-tree gap — `diff-analyzer.ts:101-115` `getCurrentRef`
+  resolves only `GITHUB_SHA` `:102-103` / `--abbrev-ref HEAD` `:107` / `HEAD` `:115` (committed refs;
+  `diffSummary([baseRef,currentRef]):39`, `diff([baseRef,currentRef,...]):47`; **no `--cached`/`--staged`/`status`**);
+  prune/stats gap — `cli.ts` registers only `learn:37`/`select:68`/`init:101`; dead `extractFunctionMappings`
+  `parser.ts:57` (**0 callers** via `rg`, vs used `parseTestNames:124` at `learn.ts:69`); run-19 pool leak —
+  `setup.ts:5` `new TestDatabase()` (beforeAll) never closed vs `:15` (afterAll) tears down a **different** instance.
+- **Advisory audit refreshed** (`npm audit --package-lock-only --omit=dev --json`, registry reachable): **7 production
+  vulns — `{critical:1, high:4, moderate:2}`, identical split to runs 24→46.** Affected pkgs unchanged:
+  `@actions/github` (mod, direct), `@actions/http-client` (mod), `brace-expansion`/`minimatch`/`picomatch`/`undici`
+  (high), `simple-git` (**critical + direct**, RCE). Same dep/chain/headline; **count unchanged at 7**. **#7 already
+  covers it** → no new ticket.
+- **REPO_OVERVIEW §7 staleness re-confirmed:** still lists `coverage/parser.ts#parseTestNames` as dead though it is
+  used (`learn.ts:69`); only `extractFunctionMappings` (`parser.ts:57`) is truly dead. `REPO_OVERVIEW.md`/`AGENTS.md`
+  still only on the setup branch, no PR → unchanged status for **#12**.
+- **`gh` READ-ONLY (runs 10–47) — re-verified live:** `gh api user` → **403 "Resource not accessible by integration"**;
+  repo permissions = `{admin:false, maintain:false, pull:false, push:false, triage:false}` (`visibility: public`).
+  **`GetDynamicTools` re-checked** (pattern
+  `issue|comment|label|create|ticket|bug|assign|write|dispatch|post|edit|update|milestone|project|note` across all
+  servers → **`matches: []`**): only `Cursor Automation Tools` (`open_git_pr` + `automation_memory`) and read-only
+  `cursor-cloud` — **no issue-creation/comment tool**; system prompt also forbids `gh` writes. Bot cannot create issues
+  or post the `@cursor` handoff comment. Did **not** attempt any issue write.
+- **Decision — filed 0 NEW issues** (as in runs 8–46). Two independent reasons: (a) issue creation is physically
+  impossible here (read-only token, no sanctioned write tool); (b) even with a write path the backlog is **healthy at
+  11/15** and covers every audit dimension (correctness #4/#14, E2E #5, security #7, CI/release #8, lint/code-quality
+  #9, DB hygiene #10, SQLite #11, docs #12, Action outputs #13), product code is unchanged since run 3, and **no
+  net-new grounded candidate surfaced this run** — the three genuine candidates already have full ready-to-file
+  ISSUE-FORMAT specs above (working-tree P1, prune/stats P1, `setup.ts` pool-leak P2 → 12/13/14 of 15 the instant a
+  write path exists). Honors *"≤2/run, quality over volume, skip if healthy"* + the user's explicit *"15 max; don't
+  create more if already open."*
+- **Bottleneck unchanged after 46 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. The single highest-leverage action remains a **maintainer (or a
+  comment-scoped token)** commenting `@cursor please implement this issue.` on **#4 first**, then #14 → #5, #7 → #8,
+  #9/#10, #11 [after #10] / #12, then the queued working-tree + prune/stats + `setup.ts` pool-leak tickets, then #13 —
+  plus applying the intended labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–46. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
