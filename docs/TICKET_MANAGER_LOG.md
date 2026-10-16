@@ -118,7 +118,7 @@ vulnerable transitive chain (`@ts-morph/common`→`fast-glob`→`micromatch`→`
 `ts-morph` bump is no longer merely cosmetic — it is the fix for 5 of the 6 newly-high advisories and folds
 into #7's audit gate.** `commander`/`chalk` remain low-urgency; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 85
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 86
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -133,7 +133,7 @@ into #7's audit gate.** `commander`/`chalk` remain low-urgency; don't churn for 
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–85 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–86 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -4995,3 +4995,46 @@ keep progress md under `docs/`, push to `main` every run, read at start). Identi
   plus applying the intended labels listed atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–84. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
+
+### 2026-10-16 (run 86 — 20:01 UTC cron)
+- **Filed 0** — backlog healthy (11/15 open, 4 slots free); no net-new *ticketable* grounded candidate; `gh`
+  read-only so no issue could be created/commented/labeled regardless. Cron daily (1-day gap after run 85, 10-15).
+- **State fully unchanged:** `origin/main` `4f4c26d` (log-only lineage), product code frozen at `2e0d7bc`
+  (empty diff vs `src`/`package.json`/`package-lock.json`/`action.yml`/`jest.config.js`/`tsconfig.json`/`.github`),
+  **11 open #4–#14** (all 0 comments / 0 labels via `gh issue list --json labels,comments`), 3 closed #1–#3,
+  **no PRs ever**; this run's branch `cursor/buildlens-issue-backlog-e0db` == `origin/main` (0/0 ahead/behind).
+- **Always-load context re-read in full** (byte-identical: `REPO_OVERVIEW.md` `edae72b`, `AGENTS.md` `b4c8b5e`),
+  both still only on `origin/cursor/setup-dev-environment-894a`, **not on `main`** (= #12 unmerged; `git ls-tree
+  origin/main` has only `docs/TICKET_MANAGER_LOG.md`). REPO_OVERVIEW §7 staleness re-confirmed via live grep: it
+  still lists `coverage/parser.ts#parseTestNames` as dead though it is used (`learn.ts:67` `parseTestNamesFromJson`
+  / `:69` `parseTestNames`, def `parser.ts:124`); only `extractFunctionMappings` (`parser.ts:57`, **0 callers**)
+  is truly dead → folds into #12/#9.
+- **Re-grounded core anchors live via grep on `origin/main`** (frozen diff proves every anchor still holds): #4 —
+  `select.ts:29` `execute(): Promise<void>`, all-test fallback `:43/45/162/165/202` + `runAllTests():208`
+  (`fallbackToAll?:10`), `:141` `getFunctionsByFilePaths` file-level broadening; `parser.ts:160-162`
+  `normalizePath` does not relativize + `:89` stores that (absolute) key = root cause of the path mismatch. #14 —
+  `learn.ts:58` `getCoveredFiles`, `:89/91` loop over ALL covered src files, `:105` per-test, `:112` per-testFile,
+  `:113` dead `testBaseName`, `:115` `Object.entries(coverageData)`, `:151` `createLink` cross-product.
+  Working-tree gap — `diff-analyzer.ts:101-115` `getCurrentRef()` committed-only (`GITHUB_SHA`/`--abbrev-ref HEAD`/
+  `HEAD`; no `--cached`/status). Prune/stats gap — `cli.ts` registers only `learn:37`/`select:68`/`init:101`.
+  Run-19 pool leak — `setup.ts:3-5` beforeAll opens a pool never closed vs a different instance torn down `:13-15`.
+  `engines` still undefined in `package.json` (= #8).
+- **`gh` READ-ONLY re-verified live:** `gh api user` → 403 "Resource not accessible by integration"; repo perms
+  `{admin:false, maintain:false, push:false, pull:false, triage:false}` (`visibility: public`). `GetDynamicTools`
+  issue-write pattern across all servers → only Linear `subscribe_linear_comment`/`subscribe_linear_issue`
+  (read-only); no GitHub issue-write tool (only `open_git_pr` PR-scoped + `automation_memory` memory-scoped;
+  `cursor-cloud` read-only). Did **not** attempt any issue write.
+- **Audit prod STABLE at 13** `{crit:1, high:10, mod:2}` — same 13 pkgs as runs 73–85 (`@actions/github`,
+  `@actions/http-client`, `@fastify/busboy`, `@ts-morph/common`, `brace-expansion`, `braces`, `fast-glob`,
+  `micromatch`, `minimatch`, `picomatch`, `simple-git`, `ts-morph`, `undici`); lock frozen so purely persisted
+  newly-published advisories. `simple-git` critical RCE + `@actions/github`→undici→`@fastify/busboy` + the
+  `ts-morph` chain are all **covered by #7** (audit gate + `@actions/github`/undici bump clears busboy; the
+  `ts-morph@^21`→current-major dep-currency bump clears the 5-pkg `ts-morph` chain) → **NOT a new ticket** (would
+  dup #7); cannot comment on #7 (gh read-only).
+- **Bottleneck unchanged after 85 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. Highest-leverage action remains a **maintainer (or a comment-scoped
+  token)** commenting `@cursor please implement this issue.` on **#4 first**, then #14 → #5, #7 → #8, #9/#10,
+  #11 [after #10] / #12, then the queued working-tree + prune/stats + `setup.ts` pool-leak tickets, then #13 —
+  plus applying the intended labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–85. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
