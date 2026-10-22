@@ -118,7 +118,7 @@ vulnerable transitive chain (`@ts-morph/common`→`fast-glob`→`micromatch`→`
 `ts-morph` bump is no longer merely cosmetic — it is the fix for 5 of the 6 newly-high advisories and folds
 into #7's audit gate.** `commander`/`chalk` remain low-urgency; don't churn for fashion.
 
-## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 91
+## Current OPEN backlog (10 work + 1 tracking = 11; cap 15 → 4 slots free) — unchanged through run 92
 | # | Title | Intended priority/type | Status |
 |---|-------|------------------------|--------|
 | 4 | Fix path & function-identity mismatch so `select` matches stored functions | P0 / bug | open, needs `@cursor` trigger |
@@ -133,7 +133,7 @@ into #7's audit gate.** `commander`/`chalk` remain low-urgency; don't churn for 
 | 13 | Fix Action outputs: real `tests-selected`/`tests-run` + propagate `base-ref`/sha | P2 / bug | open (run 6), needs `@cursor` trigger |
 | 6 | [Tracking] BuildLens backlog — top priorities & daily digest | tracking | open (digest lives here; bot can't edit it) |
 
-## Top 5 priorities (updated run 7; reconfirmed runs 8–91 — unchanged; correctness-of-core-promise occupies the top 3)
+## Top 5 priorities (updated run 7; reconfirmed runs 8–92 — unchanged; correctness-of-core-promise occupies the top 3)
 1. **#4** — P0/bug: fix path/identity mismatch so `select` *finds* stored functions (else it always
    falls back). *(filed)*
 2. **#14** — P1/bug: fix `learn` cross-product so each test maps only to functions it executed —
@@ -5253,3 +5253,46 @@ keep progress md under `docs/`, push to `main` every run, read at start). Identi
   plus applying the intended labels listed atop each issue body.
 - **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
   Unchanged from runs 7–90. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
+
+### 2026-10-22 (run 92 — 20:02 UTC cron)
+- **Filed 0** — backlog healthy (11/15 open, 4 slots free); no net-new *ticketable* grounded candidate; `gh`
+  read-only so no issue could be created/commented/labeled regardless. Cron daily (1-day gap after run 91, 10-21).
+- **NEW this run:** added **`docs/TICKET_MANAGER_STATE.md`** — a concise, overwritten-each-run "current tasks
+  flow" snapshot (blocker + 11-ticket backlog table + handoff order + 3 queued specs + audit/staleness) so the
+  user's "read at start" file is glanceable; this chronological log (~528KB) stays the full history. Both pushed
+  to `main`.
+- **State fully unchanged:** `origin/main` `66002c1` (run-91 commit; log-only lineage), product code frozen at
+  `2e0d7bc` (empty diff vs `src`/`package.json`/`package-lock.json`/`action.yml`/`jest.config.js`/`tsconfig.json`/
+  `.github`/`scripts`/`docker-compose*.yml`), **11 open #4–#14** (all 0 comments / 0 labels via `gh issue list
+  --json labels,comments`), 3 closed #1–#3, **no PRs ever** (`gh pr list --state all` = `[]`); this run's branch
+  `cursor/buildlens-issue-backlog-aea7` == `origin/main` (0/0 ahead/behind).
+- **Always-load context re-read in full** (byte-identical: `REPO_OVERVIEW.md` `edae72b`, `AGENTS.md` `b4c8b5e`),
+  both still only on `origin/cursor/setup-dev-environment-894a`, **not on `main`** (= #12 unmerged; `git ls-tree
+  origin/main REPO_OVERVIEW.md AGENTS.md` empty, setup branch has both blobs). REPO_OVERVIEW §7 staleness
+  re-confirmed **live via grep**: `parseTestNames` IS used (`learn.ts:67` json path / `:69` text fallback →
+  `coverage/parser.ts:124` def); only `extractFunctionMappings` (`parser.ts:57`, **0 callers** — definition only)
+  is truly dead.
+- **Re-grounded core anchors** (grep; product diff vs `2e0d7bc` empty): #4 — `select.ts` `execute(): Promise<void>`
+  + all-test fallback + `runAllTests()`, `getFunctionsByFilePaths` file-level broadening, `parser.ts:160`
+  `normalizePath` does not relativize + `:89` stores that (absolute) key = root cause. #14 — `learn.ts:112`
+  per-testFile outer loop + `:89/91` all-src inner + dead `testBaseName:113` + `:151` `createLink` cross-product.
+  Working-tree gap — `diff-analyzer.ts:101-118` `getCurrentRef()` committed-only. Prune/stats gap — `cli.ts`
+  registers only `learn`/`select`/`init`. Run-19 pool leak — `setup.ts:5` beforeAll opens a pool never closed vs a
+  different instance torn down `:15`. `engines` still undefined in `package.json` + no `.nvmrc` (= #8).
+- **`gh` READ-ONLY re-verified live:** `gh api user` → 403 "Resource not accessible by integration"; repo perms
+  `{admin:false, maintain:false, push:false, pull:false, triage:false}` (`visibility: public`). `GetDynamicTools`
+  issue-write pattern across all servers → only Linear `subscribe_*` (read-only); no GitHub issue-write tool (only
+  `open_git_pr` PR-scoped + `automation_memory` memory-scoped; `cursor-cloud` read-only). Did **not** attempt any
+  issue write.
+- **Audit prod STABLE at 13** `{crit:1, high:10, mod:2}` — same 13 pkgs as runs 73–91 (`@actions/github`,
+  `@actions/http-client`, `@fastify/busboy`, `@ts-morph/common`, `brace-expansion`, `braces`, `fast-glob`,
+  `micromatch`, `minimatch`, `picomatch`, `simple-git`, `ts-morph`, `undici`); lock frozen so purely persisted
+  newly-published advisories, all **covered by #7** → **NOT a new ticket** (would dup #7); cannot comment on #7
+  (gh read-only).
+- **Bottleneck unchanged after 91 runs:** no `@cursor` handoff has ever been dispatchable by the bot and **no PRs
+  exist** — product code has never changed. Highest-leverage action remains a **maintainer (or a comment-scoped
+  token)** commenting `@cursor please implement this issue.` on **#4 first**, then #14 → #5, #7 → #8, #9/#10,
+  #11 [after #10] / #12, then the queued working-tree + prune/stats + `setup.ts` pool-leak tickets, then #13 —
+  plus applying the intended labels listed atop each issue body.
+- **Open tickets: 11** (#4, #5, #6 tracking, #7, #8, #9, #10, #11, #12, #13, #14) — cap 15, **4 slots free**.
+  Unchanged from runs 7–91. Three fully-spec'd ready-to-file candidates remain queued (2× P1, 1× P2).
