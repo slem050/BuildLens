@@ -4,10 +4,9 @@
 > history, and `REPO_OVERVIEW.md` + `AGENTS.md` on `origin/cursor/setup-dev-environment-894a`).
 > This file is a concise snapshot, **overwritten every run** and pushed to `main`.
 
-**Last run:** 93 — 2026-10-23 (daily cron) · **Filed:** 0 · **Backlog:** 11 / 15 open (healthy, 4 free)
-**Net change vs run 92:** dependency audit dropped **13 → 8** prod vulns — the 5-pkg `ts-morph`
-high-severity chain cleared at the advisory level (lockfile still frozen). Everything else unchanged
-(product code, issues, PRs, context docs all identical).
+**Last run:** 94 — 2026-10-24 (daily cron) · **Filed:** 0 · **Backlog:** 11 / 15 open (healthy, 4 free)
+**Net change vs run 93:** none. Product code, issues, PRs, context docs all identical; dependency
+audit held at **8** prod vulns (run 93's 13 → 8 drop, the `ts-morph` chain clearing, stuck).
 
 ## Hard constraints
 - **≤ 15 OPEN issues total**; do **not** create more if we already have open ones (11 open → 4 free).
@@ -21,10 +20,10 @@ There is **no sanctioned GitHub issue-write capability** in this environment:
   `{admin, maintain, pull, push, triage} = all false` (repo is public).
 - **No MCP issue-write tool** — only `open_git_pr` (PR-scoped) + `automation_memory` (memory-scoped);
   `cursor-cloud` is read-only; Linear tools are read-only `subscribe_*` (and `cursor:CreateGoal` is
-  not GitHub). Re-verified run 93 via `GetDynamicTools` pattern scan across all servers.
+  not GitHub). Re-verified run 94 via `GetDynamicTools` pattern scan across all servers.
 
 → Cannot **create** issues, **comment** (so step-6 `@cursor` handoff is impossible), or **apply labels**.
-Across 93 runs, 0 issues have been filed. Only a **maintainer** (or a comment-scoped token) can act.
+Across 94 runs, 0 issues have been filed. Only a **maintainer** (or a comment-scoped token) can act.
 
 ## Current OPEN backlog (11; all show 0 labels / 0 comments — can't be applied)
 | # | Priority / type | Title |
@@ -47,19 +46,19 @@ Closed: #1, #2, #3 (superseded by #4, #5, #6).
 `#4 → #14 → #5` (core promise) · `#7 → #8` · `#9 / #10` · `#11` (after #10) `/ #12` · `#13` (after #4/#8).
 
 ## Queued ready-to-file specs (can't file — no write path; full specs in the LOG)
-1. **[P1]** `select` ignores the working tree (committed diff only) — `git/diff-analyzer.ts:101-118`
-   `getCurrentRef()` resolves only `GITHUB_SHA` / `HEAD`; breaks README local-dev flow.
+1. **[P1]** `select` ignores the working tree (committed diff only) — `git/diff-analyzer.ts:101-115`
+   `getCurrentRef()` resolves only `GITHUB_SHA` / `--abbrev-ref HEAD` / `HEAD`; breaks README local-dev flow.
 2. **[P1]** no `prune`/`stats`/cleanup CLI command — `cli.ts` registers only `learn`/`select`/`init`;
    `functions` rows accumulate by `commit_hash` with no cleanup.
 3. **[P2]** leaked test-DB pool in global Jest setup — `__tests__/setup.ts:5` opens a pool never
    closed vs a different instance torn down `:15` (the AGENTS.md "worker failed to exit" teardown quirk).
 
 ## Product & audit state
-- Product code **frozen at `2e0d7bc`** — no PRs ever; all later commits are docs-only.
-- `npm audit --omit=dev` = **8 vuln pkgs** `{crit:1, high:5, mod:2}` (run 93; was a stable 13 across
-  runs 73–92). Still flagged: `simple-git` CRIT (direct, RCE) · `undici`, `@fastify/busboy`,
-  `brace-expansion`, `minimatch`, `picomatch` HIGH · `@actions/github` (direct), `@actions/http-client`
-  MOD. **Cleared this run** (advisory-level, lock unchanged): the `ts-morph` chain —
+- Product code **frozen at `2e0d7bc`** (2026-01-07) — no PRs ever; all later commits are docs-only.
+- `npm audit --omit=dev` = **8 vuln pkgs** `{crit:1, high:5, mod:2}` (run 94; held from run 93's drop
+  off a stable 13 across runs 73–92). Still flagged: `simple-git` CRIT (direct, RCE) · `undici`,
+  `@fastify/busboy`, `brace-expansion`, `minimatch`, `picomatch` HIGH · `@actions/github` (direct),
+  `@actions/http-client` MOD. **Cleared** (advisory-level, lock unchanged): the `ts-morph` chain —
   `ts-morph`, `@ts-morph/common`, `fast-glob`, `micromatch`, `braces`. **All remaining 8 covered by #7**
   → not a new ticket. The `ts-morph` bump reverts to a *cosmetic* dep-currency item (no longer security).
 
