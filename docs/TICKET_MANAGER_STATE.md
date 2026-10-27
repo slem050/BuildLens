@@ -4,8 +4,8 @@
 > history, and `REPO_OVERVIEW.md` + `AGENTS.md` on `origin/cursor/setup-dev-environment-894a`).
 > This file is a concise snapshot, **overwritten every run** and pushed to `main`.
 
-**Last run:** 96 — 2026-10-26 (daily cron) · **Filed:** 0 · **Backlog:** 11 / 15 open (healthy, 4 free)
-**Net change vs run 95:** none. Product code, issues, PRs, context docs all identical; dependency
+**Last run:** 97 — 2026-10-27 (daily cron) · **Filed:** 0 · **Backlog:** 11 / 15 open (healthy, 4 free)
+**Net change vs run 96:** none. Product code, issues, PRs, context docs all identical; dependency
 audit **held at 8** prod vulns (the run-93 13 → 8 `ts-morph`-chain drop is still holding).
 
 ## Hard constraints
@@ -20,10 +20,10 @@ There is **no sanctioned GitHub issue-write capability** in this environment:
   `{admin, maintain, pull, push, triage} = all false` (repo is public).
 - **No MCP issue-write tool** — only `open_git_pr` (PR-scoped) + `automation_memory` (memory-scoped);
   `cursor-cloud` is read-only; Linear tools are read-only `subscribe_*` (and `cursor:CreateGoal` is
-  not GitHub). Re-verified run 96 via `GetDynamicTools` pattern scan across all servers.
+  not GitHub). Re-verified run 97 via `GetDynamicTools` pattern scan across all servers.
 
 → Cannot **create** issues, **comment** (so step-6 `@cursor` handoff is impossible), or **apply labels**.
-Across 96 runs, 0 issues have been filed. Only a **maintainer** (or a comment-scoped token) can act.
+Across 97 runs, 0 issues have been filed. Only a **maintainer** (or a comment-scoped token) can act.
 
 ## Current OPEN backlog (11; all show 0 labels / 0 comments — can't be applied)
 | # | Priority / type | Title |
@@ -56,7 +56,7 @@ Closed: #1, #2, #3 (superseded by #4, #5, #6).
 
 ## Product & audit state
 - Product code **frozen at `2e0d7bc`** — no PRs ever; all later commits are docs-only.
-- `npm audit --omit=dev` = **8 vuln pkgs** `{crit:1, high:5, mod:2}` (run 96; held from run 93's drop
+- `npm audit --omit=dev` = **8 vuln pkgs** `{crit:1, high:5, mod:2}` (run 97; held from run 93's drop
   off a stable 13 across runs 73–92). Still flagged: `simple-git` CRIT (direct, RCE) · `undici`,
   `@fastify/busboy`, `brace-expansion`, `minimatch`, `picomatch` HIGH · `@actions/github` (direct),
   `@actions/http-client` MOD. **Cleared** (advisory-level, lock unchanged): the `ts-morph` chain —
